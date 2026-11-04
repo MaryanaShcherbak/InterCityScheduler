@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Робоче місце розробки графіків. V.4.5</title>
+  <link rel="stylesheet" href="css/style.css">
+  
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+</head>
+<body>
+
+  <!-- Верхняя панель инструментов -->
+  <header class="toolbar">
+    <label for="fileInput" class="btn btn-open" title="Відкрити Excel файл(и)">📂 Відкрити</label>
+    <input type="file" id="fileInput" accept=".xlsx" multiple style="display: none;">
+
+    <div class="divider"></div>
+
+    <button id="savePrologBtn" class="btn" title="Зберегти для ProCTOlog">💾 Для імпорту в ProCTOlog</button>
+    <button id="saveNewsletterBtn" class="btn" title="Зберегти для розсилки">💾 Для розсилки</button>
+    <button id="saveTrafficLightBtn" class="btn btn-traffic" title="Зберегти файл із підсвіткою змін">🚦 Світлофор</button>
+
+    <div class="divider"></div>
+
+    <!-- Блок выбора количества точек как на скриншоте -->
+    <div class="points-box">
+      <label for="pointsCountInput">Кількість точок:</label>
+      <input type="number" id="pointsCountInput" min="2" max="12" value="12">
+    </div>
+  </header>
+
+  <!-- Таблица графиков со всеми 48 колонками -->
+  <main class="grid-container">
+    <table id="schedulesTable">
+      <thead>
+        <!-- Шапка формируется в app.js в полном соответствии с VB.NET -->
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <!-- Строка состояния -->
+  <footer class="status-bar">
+    <span id="sourceLabel" class="source-label">Файл не завантажено</span>
+    <span id="statusInfo">Підключення...</span>
+  </footer>
+
+  <!-- Модальное окно неизвестных узлов -->
+  <div id="nodesModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Виявлено невідомі вузли</h3>
+        <button id="closeModalBtn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Наступні вузли відсутні у довіднику. Заповніть дані, щоб додати їх до бази:</p>
+        <div class="table-container">
+          <table id="unknownNodesTable">
+            <thead>
+              <tr>
+                <th>Код АХ</th>
+                <th>Назва православна</th>
+                <th>Місто</th>
+                <th>Місто (Кільце)</th>
+                <th>Категорія</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveNodesBtn" class="btn btn-traffic">💾 Зберегти у довідник</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
