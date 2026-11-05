@@ -3,6 +3,9 @@ import { ExcelHelpers } from '../utils/excelHelpers.js';
 import { DictionaryService } from './dictionaryService.js';
 
 export class ExcelReader {
+  /**
+   * Быстрое чтение без тормозящих пауз в цикле
+   */
   static async readWorkbook(file, dictionaries) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
@@ -16,13 +19,12 @@ export class ExcelReader {
 
     if (firstSheetName === "Data") {
       schedules = this.readSchedulesFromProlog(sheet);
-      // Привязываем названия из колонки B
       if (dictionaries) {
         DictionaryService.setCities(schedules, dictionaries);
       }
       schedules = this.sortSchedules(schedules);
       source = "Prolog";
-      sourceLabel = "Prolog";
+      sourceLabel = "ПроКТОлог";
       sourceColor = "#0000cd";
     } else {
       schedules = this.readSchedulesFromNewsLetter(sheet);
@@ -43,9 +45,8 @@ export class ExcelReader {
 
   static readSchedulesFromProlog(sheet) {
     const list = [];
-    const maxRow = ExcelHelpers.getMaxRowInColumn(sheet, 5); // колонка E (Маршрут)
+    const maxRow = ExcelHelpers.getMaxRowInColumn(sheet, 5); // колонка E
     for (let r = 3; r <= maxRow; r++) {
-      // Пропускаем полностью пустые строки шаблона
       const routeVal = ExcelHelpers.getValue(sheet, r, 5);
       const grfVal = ExcelHelpers.getValue(sheet, r, 192);
       const startDateVal = ExcelHelpers.getValue(sheet, r, 2);
@@ -62,9 +63,8 @@ export class ExcelReader {
 
   static readSchedulesFromNewsLetter(sheet) {
     const list = [];
-    const maxRow = ExcelHelpers.getMaxRowInColumn(sheet, 1); // колонка A (Дата запуску)
+    const maxRow = ExcelHelpers.getMaxRowInColumn(sheet, 1); // колонка A
     for (let r = 5; r <= maxRow; r++) {
-      // Пропускаем полностью пустые строки шаблона
       const routePravoslVal = ExcelHelpers.getValue(sheet, r, 11);
       const grfVal = ExcelHelpers.getValue(sheet, r, 3);
       const startDateVal = ExcelHelpers.getValue(sheet, r, 1);
@@ -88,7 +88,7 @@ export class ExcelReader {
       if (b.logFri !== a.logFri) return b.logFri ? 1 : -1;
       if (b.logSat !== a.logSat) return b.logSat ? 1 : -1;
       if (b.logSun !== a.logSun) return b.logSun ? 1 : -1;
-      if (a.routePravosl !== b.routePravosl) return a.routePravosl.localeCompare(b.routePravosl);
+      if (a.routePravosl !== b.routePravosl) return (a.routePravosl || "").localeCompare(b.routePravosl || "");
       return (a.t2?.getTime() || 0) - (b.t2?.getTime() || 0);
     });
   }

@@ -6,8 +6,9 @@ const GOOGLE_APP_URL = "https://script.google.com/macros/s/AKfycbx1hpIw1RKBT0Hau
 
 let schedules = [];
 let appDictionaries = null;
+let currentRenderSession = 0;
 
-// Элементы UI
+// UI элементы
 const fileInput = document.getElementById('fileInput');
 const savePrologBtn = document.getElementById('savePrologBtn');
 const saveNewsletterBtn = document.getElementById('saveNewsletterBtn');
@@ -17,26 +18,110 @@ const sourceLabel = document.getElementById('sourceLabel');
 const statusInfo = document.getElementById('statusInfo');
 const schedulesTable = document.getElementById('schedulesTable');
 
+// Элементы прогресс-бара
+const progressContainer = document.getElementById('progressContainer');
+const progressBarFill = document.getElementById('progressBarFill');
+const progressText = document.getElementById('progressText');
+
 // Элементы модального окна
 const nodesModal = document.getElementById('nodesModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const saveNodesBtn = document.getElementById('saveNodesBtn');
 const unknownNodesTableBody = document.querySelector('#unknownNodesTable tbody');
 
-// 1. Инициализация и загрузка справочников
+// Управление прогресс-баром
+function showIndeterminateProgress(label) {
+  progressContainer.style.display = 'flex';
+  progressBarFill.classList.add('indeterminate');
+  progressBarFill.style.width = '100%';
+  progressText.textContent = "...";
+  if (label) statusInfo.textContent = label;
+}
+
+function setProgress(percent, label = null) {
+  progressContainer.style.display = 'flex';
+  progressBarFill.classList.remove('indeterminate');
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  progressBarFill.style.width = `${clamped}%`;
+  progressText.textContent = `${clamped}%`;
+  if (label) statusInfo.textContent = label;
+}
+
+function hideProgress() {
+  setTimeout(() => {
+    progressContainer.style.display = 'none';
+    progressBarFill.classList.remove('indeterminate');
+    progressBarFill.style.width = '0%';
+  }, 300);
+}
+
+// Быстрая загрузка без тормозов
+fileInput.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  if (files.length === 0) return;
+
+  try {
+    showLoader(`Зчитування ${files.length > 1 ? files.length + ' файлів' : files[0].name}...`);
+    statusInfo.textContent = "Зчитування файлів...";
+
+    // 50 мс дают браузеру время плавно отрисовать крутилку на экране
+    await new Promise(r => setTimeout(r, 50));
+    await initPromise;
+
+    let combinedSchedules = [];
+    let detectedSources = new Set();
+    let lastColor = "#0000cd";
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (files.length > 1) {
+        showLoader(`Зчитування файлу ${i + 1} з ${files.length}: ${file.name}...`);
+        await new Promise(r => setTimeout(r, 20));
+      }
+
+      const result = await ExcelReader.readWorkbook(file, appDictionaries);
+      combinedSchedules.push(...result.schedules);
+      detectedSources.add(result.sourceLabel);
+      lastColor = result.sourceColor;
+    }
+
+    showLoader("Сортування та підготовка таблиці...");
+    await new Promise(r => setTimeout(r, 20));
+
+    schedules = ExcelReader.sortSchedules(combinedSchedules);
+
+    sourceLabel.textContent = Array.from(detectedSources).join(" + ") || "Завантажено";
+    sourceLabel.style.color = detectedSources.size === 1 ? lastColor : "#2a52be";
+    statusInfo.textContent = `Успішно завантажено графіків: ${schedules.length} (файлів: ${files.length})`;
+
+    renderTableChunked(schedules, 100);
+    checkUnknownNodes();
+
+  } catch (err) {
+    console.error("Помилка читання файлів:", err);
+    alert("Помилка при читанні файлів: " + err.message);
+    statusInfo.textContent = "Помилка завантаження";
+  } finally {
+    hideLoader();
+    fileInput.value = "";
+  }
+});
+
+
+// Загрузка справочников
 const initPromise = (async function initApp() {
-  if (statusInfo) statusInfo.textContent = "Завантаження довідників...";
+  statusInfo.textContent = "Завантаження довідників...";
   try {
     appDictionaries = await DictionaryService.loadFromGoogleAPI(GOOGLE_APP_URL);
-    if (statusInfo) statusInfo.textContent = "Довідники успішно завантажені";
+    statusInfo.textContent = "Довідники успішно завантажені";
   } catch (e) {
     console.error("Помилка завантаження довідників:", e);
-    if (statusInfo) statusInfo.textContent = "Увага: не вдалося завантажити довідники з Google";
+    statusInfo.textContent = "Увага: не вдалося завантажити довідники з Google";
   }
   return appDictionaries;
 })();
 
-// 2. Обработка загрузки файлов
+// Обработка загрузки файлов с точным прогрессом чтения
 fileInput.addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
   if (files.length === 0) return;
@@ -45,20 +130,32 @@ fileInput.addEventListener('change', async (e) => {
     statusInfo.textContent = "Очікування довідників...";
     await initPromise;
 
-    statusInfo.textContent = `Зчитування файлів (${files.length})...`;
+    setProgress(0, `Початок завантаження (${files.length} файл.)...`);
+
     let combinedSchedules = [];
     let detectedSources = new Set();
     let lastColor = "#0000cd";
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      statusInfo.textContent = `Обробка файлу ${i + 1} з ${files.length}: ${file.name}...`;
 
-      const result = await ExcelReader.readWorkbook(file, appDictionaries);
+      const result = await ExcelReader.readWorkbook(file, appDictionaries, (filePercent, stepText) => {
+        // Вычисляем общий процент с учетом индекса текущего файла
+        const globalPercent = ((i + filePercent / 100) / files.length) * 100;
+        const label = files.length > 1 
+          ? `[${i + 1}/${files.length}] ${file.name}: ${stepText}` 
+          : `${file.name}: ${stepText}`;
+        setProgress(globalPercent, label);
+      });
+
       combinedSchedules.push(...result.schedules);
       detectedSources.add(result.sourceLabel);
       lastColor = result.sourceColor;
     }
+
+    // Завершаем и скрываем прогресс-бар: чтение полностью окончено
+    setProgress(100, "Файли успішно зчитано");
+    hideProgress();
 
     schedules = ExcelReader.sortSchedules(combinedSchedules);
 
@@ -66,19 +163,22 @@ fileInput.addEventListener('change', async (e) => {
     sourceLabel.style.color = detectedSources.size === 1 ? lastColor : "#2a52be";
     statusInfo.textContent = `Успішно завантажено графіків: ${schedules.length} (файлів: ${files.length})`;
 
-    renderTable(schedules);
+    // Отрисовка таблицы происходит независимо, без индикатора
+    renderTableChunked(schedules, 100);
+
     checkUnknownNodes();
 
   } catch (err) {
     console.error("Помилка читання файлів:", err);
     alert("Помилка при читанні файлів: " + err.message);
     statusInfo.textContent = "Помилка завантаження";
+    hideProgress();
   } finally {
     fileInput.value = "";
   }
 });
 
-// 3. Управление отображением количества точек (как на скриншоте)
+// Аппаратное скрытие колонок количества точек через CSS
 if (pointsCountInput) {
   pointsCountInput.addEventListener('input', () => {
     updatePointsVisibility(parseInt(pointsCountInput.value, 10) || 12);
@@ -87,22 +187,27 @@ if (pointsCountInput) {
 
 function updatePointsVisibility(pointsCount) {
   const maxVisibleT = pointsCount * 2;
-
-  for (let i = 1; i <= 24; i++) {
-    const th = document.querySelector(`.th-T${i}`);
-    const cells = document.querySelectorAll(`.col-T${i}`);
-    
-    // T1, T2 (первая точка) и T23, T24 (последняя точка) видны ВСЕГДА
-    const isVisible = (i <= 2 || i >= 23 || i <= maxVisibleT);
-
-    if (th) th.style.display = isVisible ? "" : "none";
-    cells.forEach(c => c.style.display = isVisible ? "" : "none");
+  let styleTag = document.getElementById('dynamicPointsStyle');
+  if (!styleTag) {
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamicPointsStyle';
+    document.head.appendChild(styleTag);
   }
+
+  let cssRules = [];
+  for (let i = 3; i <= 22; i++) {
+    if (i > maxVisibleT) {
+      cssRules.push(`.th-T${i}, .col-T${i}`);
+    }
+  }
+
+  styleTag.textContent = cssRules.length > 0 ? `${cssRules.join(', ')} { display: none !important; }` : "";
 }
 
-// 4. Полный рендеринг 48 колонок
-function renderTable(data) {
-  // Формируем шапку таблицы с ширинами из FormatSchedules()
+function ensureTableHeader() {
+  const thead = schedulesTable.querySelector('thead');
+  if (thead.innerHTML.trim() !== "") return;
+
   let theadHtml = `
     <tr>
       <th style="width: 110px;">Дата і час початку</th>
@@ -128,13 +233,11 @@ function renderTable(data) {
       <th class="th-T2" style="width: 50px;">Виїзд</th>
   `;
 
-  // Промежуточные точки T3 - T22
   for (let i = 3; i <= 22; i++) {
     const isArr = (i % 2 !== 0);
     theadHtml += `<th class="th-T${i}" style="width: 50px;">${isArr ? 'Приїзд' : 'Виїзд'}</th>`;
   }
 
-  // Конечная точка T23, T24 и дедлайны
   theadHtml += `
       <th class="th-T23" style="width: 50px;">Приїзд</th>
       <th class="th-T24" style="width: 50px;">Виїзд</th>
@@ -145,26 +248,57 @@ function renderTable(data) {
       <th style="width: 60px;">В</th>
     </tr>
   `;
-  schedulesTable.querySelector('thead').innerHTML = theadHtml;
+  thead.innerHTML = theadHtml;
+}
 
-  // Формируем строки данных
+// Чанковая отрисовка строк без вмешательства в прогресс-бар
+function renderTableChunked(data, chunkSize = 100) {
+  ensureTableHeader();
+  currentRenderSession++;
+  const session = currentRenderSession;
+
   const tbody = schedulesTable.querySelector('tbody');
   tbody.innerHTML = "";
-  const fragment = document.createDocumentFragment();
 
-  data.forEach((s) => {
-    const tr = document.createElement('tr');
+  const total = data.length;
+  if (total === 0) return;
 
-    // Подсветка строк по правилам ApplyRowStyles
-    if (s.endDate && !isNaN(s.endDate.getTime())) {
-      tr.style.backgroundColor = "#fa8072"; // Закрыт
-    } else if (s.isNew) {
-      tr.style.backgroundColor = "#90ee90"; // Новый
-    } else if (s.changed) {
-      tr.style.backgroundColor = "#ffff00"; // Изменен
+  let index = 0;
+  updatePointsVisibility(parseInt(pointsCountInput ? pointsCountInput.value : 12, 10));
+
+  function renderChunk() {
+    if (session !== currentRenderSession) return;
+
+    const end = Math.min(index + chunkSize, total);
+    let chunkHtml = "";
+
+    for (let i = index; i < end; i++) {
+      chunkHtml += getRowHtml(data[i]);
     }
 
-    let trHtml = `
+    tbody.insertAdjacentHTML('beforeend', chunkHtml);
+    index = end;
+
+    if (index < total) {
+      requestAnimationFrame(renderChunk);
+    }
+  }
+
+  renderChunk();
+}
+
+function getRowHtml(s) {
+  let rowStyle = "";
+  if (s.endDate && !isNaN(s.endDate.getTime())) {
+    rowStyle = 'style="background-color: #fa8072;"';
+  } else if (s.isNew) {
+    rowStyle = 'style="background-color: #90ee90;"';
+  } else if (s.changed) {
+    rowStyle = 'style="background-color: #ffff00;"';
+  }
+
+  let html = `
+    <tr ${rowStyle}>
       <td>${formatDateTime(s.startDate)}</td>
       <td>${formatDateTime(s.endDate)}</td>
       <td>${s.grf || ""}</td>
@@ -184,32 +318,23 @@ function renderTable(data) {
       <td><input type="checkbox" class="grid-chk" ${s.logSat ? "checked" : ""}></td>
       <td><input type="checkbox" class="grid-chk" ${s.logSun ? "checked" : ""}></td>
       <td><input type="checkbox" class="grid-chk" ${s.deadline ? "checked" : ""}></td>
-    `;
+  `;
 
-    // Колонки T1 .. T24
-    for (let i = 1; i <= 24; i++) {
-      trHtml += `<td class="col-T${i}" style="text-align: center;">${formatTime(s[`t${i}`])}</td>`;
-    }
+  for (let i = 1; i <= 24; i++) {
+    html += `<td class="col-T${i}" style="text-align: center;">${formatTime(s[`t${i}`])}</td>`;
+  }
 
-    trHtml += `
+  html += `
       <td>${s.comment || ""}</td>
       <td>${s.deadlineSegments || ""}</td>
       <td>${s.deadlineSegmentsSP || ""}</td>
       <td>${s.deadlineSegmentsP || ""}</td>
       <td>${s.deadlineSegmentsC || ""}</td>
-    `;
-
-    tr.innerHTML = trHtml;
-    fragment.appendChild(tr);
-  });
-
-  tbody.appendChild(fragment);
-
-  // Применяем текущий фильтр количества точек
-  updatePointsVisibility(parseInt(pointsCountInput ? pointsCountInput.value : 12, 10));
+    </tr>
+  `;
+  return html;
 }
 
-// Форматирование даты и времени как в гриде (dd.MM.yyyy HH:mm)
 function formatDateTime(d) {
   if (!d || !(d instanceof Date) || isNaN(d.getTime())) return "";
   const day = String(d.getDate()).padStart(2, '0');
@@ -227,7 +352,7 @@ function formatTime(d) {
   return `${h}:${m}`;
 }
 
-// 5. Логика неизвестных узлов
+// Проверка неизвестных узлов
 function checkUnknownNodes() {
   const missingAX = Array.from(DictionaryService.unknownNodesProlog).filter(n => n && n.trim());
   const missingPravosl = Array.from(DictionaryService.unknownNodesNews).filter(n => n && n.trim());
@@ -293,7 +418,7 @@ saveNodesBtn.addEventListener('click', async () => {
     DictionaryService.setCities(schedules, appDictionaries);
     DictionaryService.setAXCities(schedules, appDictionaries);
     schedules.forEach(s => s.setRoute());
-    renderTable(schedules);
+    renderTableChunked(schedules, 100);
 
     nodesModal.style.display = 'none';
     alert("Нові вузли успішно додані до довідника!");
@@ -326,4 +451,17 @@ if (saveTrafficLightBtn) {
     if (schedules.length === 0) return alert("Немає даних для збереження");
     ExcelWriter.exportToProlog(schedules, "Графіки_Світлофор.xlsx", true);
   });
+}
+
+// Элементы оверлея-крутилки
+const globalLoader = document.getElementById('globalLoader');
+const loaderText = document.getElementById('loaderText');
+
+function showLoader(text = "Обробка даних...") {
+  if (loaderText) loaderText.textContent = text;
+  if (globalLoader) globalLoader.style.display = 'flex';
+}
+
+function hideLoader() {
+  if (globalLoader) globalLoader.style.display = 'none';
 }
