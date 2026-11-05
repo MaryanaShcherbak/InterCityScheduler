@@ -94,7 +94,7 @@ fileInput.addEventListener('change', async (e) => {
     sourceLabel.style.color = detectedSources.size === 1 ? lastColor : "#2a52be";
     statusInfo.textContent = `Успішно завантажено графіків: ${schedules.length} (файлів: ${files.length})`;
 
-    renderTableChunked(schedules, 100);
+    initVirtualTable(schedules, 100);
     checkUnknownNodes();
 
   } catch (err) {
@@ -158,13 +158,14 @@ fileInput.addEventListener('change', async (e) => {
     hideProgress();
 
     schedules = ExcelReader.sortSchedules(combinedSchedules);
-
+    populateFilterDropdowns(schedules);
+    schedulesFiltered = schedules;
     sourceLabel.textContent = Array.from(detectedSources).join(" + ") || "Завантажено";
     sourceLabel.style.color = detectedSources.size === 1 ? lastColor : "#2a52be";
     statusInfo.textContent = `Успішно завантажено графіків: ${schedules.length} (файлів: ${files.length})`;
 
     // Отрисовка таблицы происходит независимо, без индикатора
-    renderTableChunked(schedules, 100);
+    initVirtualTable(schedules, 100);
 
     checkUnknownNodes();
 
@@ -251,40 +252,90 @@ function ensureTableHeader() {
   thead.innerHTML = theadHtml;
 }
 
-// Чанковая отрисовка строк без вмешательства в прогресс-бар
-function renderTableChunked(data, chunkSize = 100) {
+// --- ВИРТУАЛИЗАЦИЯ СКРОЛЛА ---
+const ROW_HEIGHT = 22; // Фиксированная высота строки из стилей
+const BUFFER_ROWS = 10; // Дополнительные строки сверху и снизу для плавности скролла
+
+let currentDataToRender = [];
+let isScrollThrottled = false;
+
+const gridContainer = document.querySelector('.grid-container');
+
+// Слушатель скролла с частотой обновления экрана (60 FPS)
+gridContainer.addEventListener('scroll', () => {
+  if (!isScrollThrottled) {
+    window.requestAnimationFrame(() => {
+      renderVisibleRows();
+      isScrollThrottled = false;
+    });
+    isScrollThrottled = true;
+  }
+}, { passive: true });
+
+// Пересчет видимого окна при изменении размера окна браузера
+window.addEventListener('resize', () => {
+  if (currentDataToRender.length > 0) renderVisibleRows();
+});
+
+/**
+ * Инициализация отображения набора данных с виртуальным скроллом
+ */
+function initVirtualTable(data, resetScroll = true) {
   ensureTableHeader();
-  currentRenderSession++;
-  const session = currentRenderSession;
+  currentDataToRender = data || [];
 
-  const tbody = schedulesTable.querySelector('tbody');
-  tbody.innerHTML = "";
-
-  const total = data.length;
-  if (total === 0) return;
-
-  let index = 0;
-  updatePointsVisibility(parseInt(pointsCountInput ? pointsCountInput.value : 12, 10));
-
-  function renderChunk() {
-    if (session !== currentRenderSession) return;
-
-    const end = Math.min(index + chunkSize, total);
-    let chunkHtml = "";
-
-    for (let i = index; i < end; i++) {
-      chunkHtml += getRowHtml(data[i]);
-    }
-
-    tbody.insertAdjacentHTML('beforeend', chunkHtml);
-    index = end;
-
-    if (index < total) {
-      requestAnimationFrame(renderChunk);
-    }
+  if (resetScroll) {
+    gridContainer.scrollTop = 0;
   }
 
-  renderChunk();
+  updatePointsVisibility(parseInt(pointsCountInput ? pointsCountInput.value : 12, 10));
+  renderVisibleRows();
+}
+
+/**
+ * Отрисовка ТОЛЬКО видимых 30-40 строк в окне просмотра
+ */
+function renderVisibleRows() {
+  const tbody = schedulesTable.querySelector('tbody');
+  const total = currentDataToRender.length;
+
+  if (total === 0) {
+    tbody.innerHTML = '<tr><td colspan="50" style="text-align: center; padding: 20px;">Немає даних для відображення</td></tr>';
+    return;
+  }
+
+  const containerHeight = gridContainer.clientHeight || 800;
+  const scrollTop = gridContainer.scrollTop;
+
+  // Вычисляем видимый диапазон индексов строк
+  let startIndex = Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS;
+  if (startIndex < 0) startIndex = 0;
+
+  let endIndex = Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER_ROWS;
+  if (endIndex > total) endIndex = total;
+
+  // Вычисляем высоту верхнего и нижнего отступов (распорок)
+  const topSpacerHeight = startIndex * ROW_HEIGHT;
+  const bottomSpacerHeight = (total - endIndex) * ROW_HEIGHT;
+
+  let html = '';
+
+  // Верхняя распорка
+  if (topSpacerHeight > 0) {
+    html += `<tr class="virtual-spacer" style="height: ${topSpacerHeight}px;"><td colspan="50"></td></tr>`;
+  }
+
+  // Отрисовываем строго видимые строки (всего ~30-50 шт)
+  for (let i = startIndex; i < endIndex; i++) {
+    html += getRowHtml(currentDataToRender[i]);
+  }
+
+  // Нижняя распорка
+  if (bottomSpacerHeight > 0) {
+    html += `<tr class="virtual-spacer" style="height: ${bottomSpacerHeight}px;"><td colspan="50"></td></tr>`;
+  }
+
+  tbody.innerHTML = html;
 }
 
 function getRowHtml(s) {
@@ -418,7 +469,7 @@ saveNodesBtn.addEventListener('click', async () => {
     DictionaryService.setCities(schedules, appDictionaries);
     DictionaryService.setAXCities(schedules, appDictionaries);
     schedules.forEach(s => s.setRoute());
-    renderTableChunked(schedules, 100);
+    initVirtualTable(schedules, 100);
 
     nodesModal.style.display = 'none';
     alert("Нові вузли успішно додані до довідника!");
@@ -465,3 +516,159 @@ function showLoader(text = "Обробка даних...") {
 function hideLoader() {
   if (globalLoader) globalLoader.style.display = 'none';
 }
+// Элементы фильтров
+const fRoute = document.getElementById('fRoute');
+const fCityA = document.getElementById('fCityA');
+const fCityB = document.getElementById('fCityB');
+const fVehType = document.getElementById('fVehType');
+const fDeliveryType = document.getElementById('fDeliveryType');
+const fRegion = document.getElementById('fRegion');
+const fRouteGroup = document.getElementById('fRouteGroup');
+const fLoadFormat = document.getElementById('fLoadFormat');
+const fMovingType = document.getElementById('fMovingType');
+const fLogDay = document.getElementById('fLogDay');
+const fRelays = document.getElementById('fRelays');
+const fDeadlines = document.getElementById('fDeadlines');
+const fChanged = document.getElementById('fChanged');
+
+const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+let schedulesFiltered = [];
+
+// 1. Наполнение выпадающих списков уникальными значениями из загруженных данных
+function populateFilterDropdowns(data) {
+  const citiesA = new Set();
+  const citiesB = new Set();
+  const deliveryTypes = new Set();
+  const movingTypes = new Set();
+  const regions = new Set();
+  const vehTypes = new Set();
+  const loadFormats = new Set();
+
+  data.forEach(s => {
+    if (s.points && s.points.length > 0) {
+      if (s.points[0].city) citiesA.add(s.points[0].city);
+      const last = s.points[s.points.length - 1];
+      if (last.city) citiesB.add(last.city);
+    }
+    if (s.deliveryType) deliveryTypes.add(s.deliveryType);
+    if (s.movingType) movingTypes.add(s.movingType);
+    if (s.region) regions.add(s.region);
+    if (s.vehicleType) vehTypes.add(s.vehicleType);
+    if (s.loadFormat) loadFormats.add(s.loadFormat);
+  });
+
+  fillSelect(fCityA, Array.from(citiesA).sort());
+  fillSelect(fCityB, Array.from(citiesB).sort());
+  fillSelect(fDeliveryType, Array.from(deliveryTypes).sort());
+  fillSelect(fMovingType, Array.from(movingTypes).sort());
+  fillSelect(fRegion, Array.from(regions).sort());
+  fillSelect(fVehType, Array.from(vehTypes).sort());
+  fillSelect(fLoadFormat, Array.from(loadFormats).sort());
+}
+
+function fillSelect(selectElem, items) {
+  const currentVal = selectElem.value;
+  selectElem.innerHTML = '<option value=""></option>';
+  items.forEach(val => {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = val;
+    selectElem.appendChild(opt);
+  });
+  selectElem.value = currentVal;
+}
+
+// 2. Алгоритм фильтрации (точное повторение FilterScheds из Form1.vb)
+function filterSchedules() {
+  let routeQuery = (fRoute.value || "").trim();
+  let regex = null;
+  if (routeQuery !== "") {
+    if (!routeQuery.includes("*")) routeQuery = "*" + routeQuery + "*";
+    // Преобразование wildcard * в регулярное выражение
+    const pattern = "^" + routeQuery.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + "$";
+    regex = new RegExp(pattern, "i");
+  }
+
+  const cityA = fCityA.value;
+  const cityB = fCityB.value;
+  const vehType = fVehType.value;
+  const delType = fDeliveryType.value;
+  const region = fRegion.value;
+  const movingType = fMovingType.value;
+  const loadFormat = fLoadFormat.value;
+  const logDay = fLogDay.value ? parseInt(fLogDay.value, 10) : null;
+  const relays = fRelays.value;
+  const deadlines = fDeadlines.value;
+  const routeGroupQuery = (fRouteGroup.value || "").trim().toUpperCase();
+  const onlyChanged = fChanged.checked;
+
+  schedulesFiltered = schedules.filter(s => {
+    // Маршрут (Route или RoutePravosl)
+    if (regex) {
+      const matchRoute = s.route && regex.test(s.route);
+      const matchPravosl = s.routePravosl && regex.test(s.routePravosl);
+      if (!matchRoute && !matchPravosl) return false;
+    }
+
+    // Города первой и последней точек
+    const firstCity = s.points?.[0]?.city || "";
+    const lastCity = s.points?.[s.points.length - 1]?.city || "";
+    if (cityA !== "" && firstCity !== cityA) return false;
+    if (cityB !== "" && lastCity !== cityB) return false;
+
+    // Свойства графика
+    if (vehType !== "" && s.vehicleType !== vehType) return false;
+    if (delType !== "" && s.deliveryType !== delType) return false;
+    if (region !== "" && s.region !== region) return false;
+    if (movingType !== "" && s.movingType !== movingType) return false;
+    if (loadFormat !== "" && s.loadFormat !== loadFormat) return false;
+
+    // Дедлайны
+    if (deadlines === "Так" && !s.deadline) return false;
+    if (deadlines === "Ні" && s.deadline) return false;
+
+    // Эстафеты (наличие буквы 'S' в имени)
+    if (relays === "Так" && !(s.name && s.name.toUpperCase().includes("S"))) return false;
+    if (relays === "Ні" && (s.name && s.name.toUpperCase().includes("S"))) return false;
+
+    // Группа маршрута
+    if (routeGroupQuery !== "" && !(s.routeGroup && s.routeGroup.toUpperCase().includes(routeGroupQuery))) return false;
+
+    // Только с изменениями
+    if (onlyChanged && !s.changed && !s.isNew) return false;
+
+    // Логистический день
+    if (logDay !== null && s.logisticDay !== logDay) return false;
+
+    return true;
+  });
+
+  statusInfo.textContent = `Відображено: ${schedulesFiltered.length} з ${schedules.length}`;
+  initVirtualTable(schedulesFiltered, 100);
+}
+
+// 3. Очистка фильтров (ClearFilter из Form1.vb)
+function clearFilters() {
+  fRoute.value = "";
+  fCityA.value = "";
+  fCityB.value = "";
+  fVehType.value = "";
+  fDeliveryType.value = "";
+  fRegion.value = "";
+  fRouteGroup.value = "";
+  fLoadFormat.value = "";
+  fMovingType.value = "";
+  fLogDay.value = "";
+  fRelays.value = "";
+  fDeadlines.value = "";
+  fChanged.checked = false;
+
+  schedulesFiltered = schedules;
+  statusInfo.textContent = `Успішно завантажено графіків: ${schedules.length}`;
+  initVirtualTable(schedules, 100);
+}
+
+applyFiltersBtn.addEventListener('click', filterSchedules);
+clearFiltersBtn.addEventListener('click', clearFilters);

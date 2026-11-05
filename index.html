@@ -29,7 +29,91 @@
       <input type="number" id="pointsCountInput" min="2" max="12" value="12">
     </div>
   </header>
+<!-- Панель фильтров (как в оригинальной Form1) -->
+  <fieldset class="filters-panel">
+    <legend>Фільтри</legend>
+    <div class="filters-grid">
+      <!-- Ряд 1 -->
+      <div class="filter-item">
+        <label for="fRoute">Маршрут</label>
+        <input type="text" id="fRoute">
+      </div>
+      <div class="filter-item">
+        <label for="fCityA">Місто виїзду</label>
+        <select id="fCityA"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fCityB">Місто приїзду</label>
+        <select id="fCityB"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fVehType">Тип ТЗ</label>
+        <select id="fVehType"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fDeliveryType">Тип доставки</label>
+        <select id="fDeliveryType"><option value=""></option></select>
+      </div>
 
+      <!-- Ряд 2 -->
+      <div class="filter-item">
+        <label for="fRegion">Регіон</label>
+        <select id="fRegion"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fRouteGroup">Група маршрутів</label>
+        <input type="text" id="fRouteGroup">
+      </div>
+      <div class="filter-item">
+        <label for="fLoadFormat">Формат завантаження</label>
+        <select id="fLoadFormat"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fMovingType">Тип переміщення</label>
+        <select id="fMovingType"><option value=""></option></select>
+      </div>
+      <div class="filter-item">
+        <label for="fLogDay">Логістична доба</label>
+        <select id="fLogDay">
+          <option value=""></option>
+          <option value="1">Понеділок</option>
+          <option value="2">Вівторок</option>
+          <option value="3">Середа</option>
+          <option value="4">Четвер</option>
+          <option value="5">П'ятниця</option>
+          <option value="6">Субота</option>
+          <option value="7">Неділя</option>
+        </select>
+      </div>
+
+      <!-- Ряд 3 -->
+      <div class="filter-item">
+        <label for="fRelays">Естафети</label>
+        <select id="fRelays">
+          <option value=""></option>
+          <option value="Так">Так</option>
+          <option value="Ні">Ні</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="fDeadlines">Дедлайни</label>
+        <select id="fDeadlines">
+          <option value=""></option>
+          <option value="Так">Так</option>
+          <option value="Ні">Ні</option>
+        </select>
+      </div>
+      <div class="filter-item filter-checkbox-item">
+        <label class="chk-label">
+          <input type="checkbox" id="fChanged"> Лише зі змінами
+        </label>
+      </div>
+      <div class="filter-buttons">
+        <button id="applyFiltersBtn" class="btn btn-filter-apply" title="Застосувати фільтри">✔</button>
+        <button id="clearFiltersBtn" class="btn btn-filter-clear" title="Очистити фільтри">✖</button>
+      </div>
+    </div>
+  </fieldset>
   <!-- Таблица графиков -->
   <main class="grid-container">
     <table id="schedulesTable">

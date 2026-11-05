@@ -71,7 +71,15 @@ body {
   flex: 1;
   overflow: auto;
   background: #ffffff;
-  contain: strict; /* Ускоряет скролл и отрисовку огромных таблиц */
+  position: relative;
+}
+
+/* Строки-распорки виртуального скролла */
+.virtual-spacer td {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  height: inherit;
 }
 
 #schedulesTable {
@@ -301,4 +309,98 @@ body {
   font-size: 11px;
   color: #777;
   margin-top: 4px;
+}
+/* Панель фильтров */
+.filters-panel {
+  background: #f4f4f4;
+  border: 1px solid #dcdcdc;
+  margin: 6px 10px;
+  padding: 6px 12px 8px 12px;
+  border-radius: 3px;
+}
+
+.filters-panel legend {
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  padding: 0 4px;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px 12px;
+  align-items: flex-end;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-item label {
+  font-size: 10.5px;
+  color: #222;
+}
+
+.filter-item input[type="text"],
+.filter-item select {
+  height: 22px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  padding: 1px 4px;
+  background: #fff;
+  width: 100%;
+}
+
+.filter-checkbox-item {
+  justify-content: center;
+  padding-bottom: 2px;
+}
+
+.chk-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 6px;
+  grid-column: span 2;
+  align-items: center;
+}
+
+.btn-filter-apply {
+  background-color: #e6e6e6;
+  border: 1px solid #0078d7;
+  color: #000;
+  font-size: 14px;
+  font-weight: bold;
+  height: 24px;
+  padding: 0 16px;
+}
+
+.btn-filter-apply:hover {
+  background-color: #d0e4f7;
+}
+
+.btn-filter-clear {
+  background-color: #e6e6e6;
+  border: 1px solid #666;
+  color: #000;
+  font-size: 14px;
+  font-weight: bold;
+  height: 24px;
+  padding: 0 16px;
+}
+
+.btn-filter-clear:hover {
+  background-color: #fce4e4;
 }
