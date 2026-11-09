@@ -34,16 +34,48 @@ const unknownNodesTableBody = document.querySelector('#unknownNodesTable tbody')
 const btnCreateNew = document.getElementById('btnCreateNew');
 const btnCreateCopy = document.getElementById('btnCreateCopy');
 const btnDeleteSched = document.getElementById('btnDeleteSched');
-// Одиночный клик по строке для выделения
+// --- ФУНКЦИОНАЛ МАСОВОГО ЗАКРИТТЯ (MassCloseBTN_Click + PromptForDate) ---
+const btnMassClose = document.getElementById('btnMassClose');
+const massCloseModal = document.getElementById('massCloseModal');
+const massCloseDateInput = document.getElementById('massCloseDateInput');
+const confirmMassCloseBtn = document.getElementById('confirmMassCloseBtn');
+const cancelMassCloseBtn = document.getElementById('cancelMassCloseBtn');
+const closeMassCloseModalBtn = document.getElementById('closeMassCloseModalBtn');
+// --- МНОЖЕСТВЕННОЕ ВЫДЕЛЕНИЕ СТРОК (DataGridView1.SelectedRows) ---
+let selectedIndices = new Set();
+let lastClickedIndex = -1;
+
 schedulesTable.querySelector('tbody').addEventListener('click', (e) => {
   const tr = e.target.closest('tr');
   if (!tr || tr.classList.contains('virtual-spacer')) return;
 
-  const prevSelected = schedulesTable.querySelector('tbody tr.selected-row');
-  if (prevSelected) prevSelected.classList.remove('selected-row');
+  const clickedIndex = parseInt(tr.dataset.index, 10);
+  if (isNaN(clickedIndex)) return;
 
-  tr.classList.add('selected-row');
-  selectedRowIndex = parseInt(tr.dataset.index, 10);
+  if (e.ctrlKey || e.metaKey) {
+    // Ctrl + Клик: переключение выбора отдельной строки
+    if (selectedIndices.has(clickedIndex)) {
+      selectedIndices.delete(clickedIndex);
+    } else {
+      selectedIndices.add(clickedIndex);
+    }
+    lastClickedIndex = clickedIndex;
+  } else if (e.shiftKey && lastClickedIndex !== -1) {
+    // Shift + Клик: выбор диапазона строк
+    selectedIndices.clear();
+    const start = Math.min(lastClickedIndex, clickedIndex);
+    const end = Math.max(lastClickedIndex, clickedIndex);
+    for (let i = start; i <= end; i++) {
+      selectedIndices.add(i);
+    }
+  } else {
+    // Обычный клик: выбор только одной строки
+    selectedIndices.clear();
+    selectedIndices.add(clickedIndex);
+    lastClickedIndex = clickedIndex;
+  }
+
+  renderVisibleRows();
 });
 // 1. Створити новий графік (Button3_Click)
 btnCreateNew.addEventListener('click', () => {
@@ -99,17 +131,83 @@ btnCreateNew.addEventListener('click', () => {
 
   openSchedModal(newSched, -1);
 });
+// 1. Открытие диалога
+btnMassClose.addEventListener('click', () => {
+  // Проверка выделения строк в таблице
+  if (selectedIndices.size === 0) {
+    alert("Виділіть хоча б один рядок (графік) для закриття!");
+    return;
+  }
 
+  // Подставляем сегодняшнюю дату по умолчанию в формате YYYY-MM-DD
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  massCloseDateInput.value = `${yyyy}-${mm}-${dd}`;
+
+  massCloseModal.style.display = 'flex';
+  massCloseDateInput.focus();
+});
+
+// 2. Подтверждение закрытия (кнопка OK)
+confirmMassCloseBtn.addEventListener('click', () => {
+  const dateVal = massCloseDateInput.value;
+  if (!dateVal) {
+    alert("Оберіть дату закриття!");
+    return;
+  }
+
+  const parts = dateVal.split('-');
+  // Дата окончания со временем 00:00:00, как в New DateTime(y, m, d, 0, 0, 0)
+  const closeDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 0, 0, 0);
+
+  let changedCount = 0;
+
+  selectedIndices.forEach((idx) => {
+    const sched = currentDataToRender[idx];
+    if (sched) {
+      sched.endDate = closeDate;
+
+      // Фиксируем изменение поля для корректного экспорта в ProCTOlog / Світлофор
+      if (!sched.changedFields.includes("EndDate")) {
+        sched.changedFields.push("EndDate");
+      }
+      sched.changed = true;
+      changedCount++;
+    }
+  });
+
+  massCloseModal.style.display = 'none';
+
+  // Перерисовка видимых строк: закрытые графики сразу получат цвет Salmon (#fa8072)
+  renderVisibleRows();
+
+  alert(`Успішно закрито графіків: ${changedCount}`);
+});
+
+// 3. Закрытие модального окна без изменений
+cancelMassCloseBtn.addEventListener('click', () => {
+  massCloseModal.style.display = 'none';
+});
+
+closeMassCloseModalBtn.addEventListener('click', () => {
+  massCloseModal.style.display = 'none';
+});
 // 2. Створити копіюванням (Button1_Click_1)
 btnCreateCopy.addEventListener('click', () => {
-  if (selectedRowIndex < 0 || !currentDataToRender[selectedRowIndex]) {
+  const targetIndex = (lastClickedIndex !== -1 && selectedIndices.has(lastClickedIndex))
+    ? lastClickedIndex
+    : selectedIndices.values().next().value;
+
+  if (targetIndex === undefined || !currentDataToRender[targetIndex]) {
     alert("Виділіть графік у таблиці для копіювання!");
     return;
   }
 
-  const baseSched = currentDataToRender[selectedRowIndex];
+  const baseSched = currentDataToRender[targetIndex];
   const copiedSched = cloneSchedule(baseSched);
-  openSchedModal(copiedSched, selectedRowIndex);
+  openSchedModal(copiedSched, targetIndex);
 });
 
 // 3. Видалити графік (Button5_Click)
@@ -453,14 +551,14 @@ function renderVisibleRows() {
 function getRowHtml(s, index) {
   let rowStyle = "";
   if (s.endDate && !isNaN(s.endDate.getTime())) {
-    rowStyle = 'style="background-color: #fa8072;"';
+    rowStyle = 'style="background-color: #fa8072;"'; // Цвет Salmon для закрытых
   } else if (s.isNew) {
     rowStyle = 'style="background-color: #90ee90;"';
   } else if (s.changed) {
     rowStyle = 'style="background-color: #ffff00;"';
   }
 
-  const isSelected = (index === selectedRowIndex) ? "selected-row" : "";
+  const isSelected = selectedIndices.has(index) ? "selected-row" : "";
 
   let html = `
     <tr data-index="${index}" class="${isSelected}" ${rowStyle}>

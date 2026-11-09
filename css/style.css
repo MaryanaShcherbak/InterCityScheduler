@@ -640,3 +640,62 @@ body {
   position: relative;
   z-index: 1;
 }
+/* Кнопка Масове закриття (стиль как на скриншоте) */
+.btn-mass-close {
+  background-color: #ff8585;
+  border: 1px solid #d9534f;
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  padding: 2px 12px;
+  height: 30px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+.btn-mass-close:hover {
+  background-color: #ff6b6b;
+}
+
+/* Диалоговое окно PromptForDate */
+.mass-close-modal-content {
+  width: 340px;
+  max-width: 90%;
+}
+
+.mass-close-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mass-close-modal-body label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #222;
+}
+
+.mass-close-modal-body input[type="date"] {
+  height: 28px;
+  padding: 2px 6px;
+  font-size: 12px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  outline: none;
+}
+
+.mass-close-modal-body input[type="date"]:focus {
+  border-color: #4a77d4;
+  box-shadow: 0 0 3px rgba(74, 119, 212, 0.5);
+}
+
+/* Оформление выделенных строк (поддерживает Ctrl и Shift) */
+#schedulesTable tbody tr.selected-row {
+  outline: 2px solid #005a9e !important;
+  outline-offset: -2px;
+  filter: brightness(0.92);
+}

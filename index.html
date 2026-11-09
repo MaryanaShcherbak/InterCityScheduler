@@ -16,6 +16,10 @@
       <button id="btnCreateNew" class="btn btn-action" title="Створити новий графік">➕</button>
       <button id="btnCreateCopy" class="btn btn-action" title="Створити копіюванням">📑</button>
       <button id="btnDeleteSched" class="btn btn-action btn-delete" title="Видалити графік (лише для створених тут)">🗑</button>
+      <!-- Кнопка массового закрытия -->
+      <button id="btnMassClose" class="btn btn-mass-close" title="Масове закриття виділених графіків">
+        Масове<br>закриття
+      </button>
     </div>
   </div>
 
@@ -317,5 +321,22 @@
   </div>
 </body>
 </html>
+<!-- Модальное окно массового закрытия (PromptForDate) -->
+  <div id="massCloseModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content mass-close-modal-content">
+      <div class="modal-header">
+        <h3>Масове закриття графіків</h3>
+        <button id="closeMassCloseModalBtn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body mass-close-modal-body">
+        <label for="massCloseDateInput">Оберіть дату закриття для виділених графіків:</label>
+        <input type="date" id="massCloseDateInput">
+      </div>
+      <div class="modal-footer">
+        <button id="confirmMassCloseBtn" class="btn btn-traffic">OK</button>
+        <button id="cancelMassCloseBtn" class="btn">Відміна</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
