@@ -7,6 +7,8 @@ const GOOGLE_APP_URL = "https://script.google.com/macros/s/AKfycbx1hpIw1RKBT0Hau
 let schedules = [];
 let appDictionaries = null;
 let currentRenderSession = 0;
+let selectedRowIndex = -1; // Индекс выделенной строки
+
 
 // UI элементы
 const fileInput = document.getElementById('fileInput');
@@ -29,6 +31,113 @@ const closeModalBtn = document.getElementById('closeModalBtn');
 const saveNodesBtn = document.getElementById('saveNodesBtn');
 const unknownNodesTableBody = document.querySelector('#unknownNodesTable tbody');
 
+const btnCreateNew = document.getElementById('btnCreateNew');
+const btnCreateCopy = document.getElementById('btnCreateCopy');
+const btnDeleteSched = document.getElementById('btnDeleteSched');
+// Одиночный клик по строке для выделения
+schedulesTable.querySelector('tbody').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr || tr.classList.contains('virtual-spacer')) return;
+
+  const prevSelected = schedulesTable.querySelector('tbody tr.selected-row');
+  if (prevSelected) prevSelected.classList.remove('selected-row');
+
+  tr.classList.add('selected-row');
+  selectedRowIndex = parseInt(tr.dataset.index, 10);
+});
+// 1. Створити новий графік (Button3_Click)
+btnCreateNew.addEventListener('click', () => {
+  const newSched = {
+    isActive: true,
+    startDate: new Date(),
+    endDate: null,
+    grf: "",
+    number: "",
+    name: "",
+    routeGroup: "",
+    order: "",
+    movingType: "",
+    vehicleType: "",
+    loadFormat: "",
+    route: "",
+    routePravosl: "",
+    deadline: false,
+    deadlineSegments: "",
+    deadlineSegmentsSP: "",
+    deadlineSegmentsP: "",
+    deadlineSegmentsC: "",
+    comment: "",
+    logMon: true,
+    logTue: false,
+    logWed: false,
+    logThu: false,
+    logFri: false,
+    logSat: false,
+    logSun: false,
+    isNew: true,
+    changed: true,
+    changedFields: [],
+    points: [
+      { name: "", arrival: new Date(1975, 0, 1, 8, 0), departure: new Date(1975, 0, 1, 8, 30), movingType: "", distance: 0, loadRamp1: 0, loadRamp2: 0 },
+      { name: "", arrival: new Date(1975, 0, 1, 14, 0), departure: new Date(1975, 0, 1, 14, 30), movingType: "", distance: 0, loadRamp1: 0, loadRamp2: 0 }
+    ],
+    setRoute() {
+      if (!this.points || this.points.length === 0) return;
+      this.route = this.points.map(p => p.name).join('_');
+      this.routePravosl = this.points.map(p => p.namePravosl || p.name).join(' - ');
+    },
+    calculateTimes() {
+      if (this.points && this.points.length > 0) {
+        this.t1 = this.points[0].arrival;
+        this.t2 = this.points[0].departure;
+        this.t23 = this.points[this.points.length - 1].arrival;
+        this.t24 = this.points[this.points.length - 1].departure;
+      }
+    },
+    normalizeTimes() {}
+  };
+
+  openSchedModal(newSched, -1);
+});
+
+// 2. Створити копіюванням (Button1_Click_1)
+btnCreateCopy.addEventListener('click', () => {
+  if (selectedRowIndex < 0 || !currentDataToRender[selectedRowIndex]) {
+    alert("Виділіть графік у таблиці для копіювання!");
+    return;
+  }
+
+  const baseSched = currentDataToRender[selectedRowIndex];
+  const copiedSched = cloneSchedule(baseSched);
+  openSchedModal(copiedSched, selectedRowIndex);
+});
+
+// 3. Видалити графік (Button5_Click)
+btnDeleteSched.addEventListener('click', () => {
+  if (selectedRowIndex < 0 || !currentDataToRender[selectedRowIndex]) {
+    alert("Виділіть рядок у таблиці для видалення!");
+    return;
+  }
+
+  const sched = currentDataToRender[selectedRowIndex];
+
+  // Проверка по правилу Button5_Click из Form1.vb
+  if (!sched.grf || sched.grf.trim() === "") {
+    if (confirm(`Видалити створений графік "${sched.route || sched.name || 'новий'}"?`)) {
+      const idxFiltered = schedulesFiltered.indexOf(sched);
+      if (idxFiltered !== -1) schedulesFiltered.splice(idxFiltered, 1);
+
+      const idxAll = schedules.indexOf(sched);
+      if (idxAll !== -1) schedules.splice(idxAll, 1);
+
+      selectedRowIndex = -1;
+      renderVisibleRows();
+      statusInfo.textContent = `Графік успішно видалено. Всього: ${schedules.length}`;
+    }
+  } else {
+    alert("Для видалення діючого графіка необхідно лише проставити йому дату закриття");
+  }
+});
 // Управление прогресс-баром
 function showIndeterminateProgress(label) {
   progressContainer.style.display = 'flex';
@@ -209,44 +318,47 @@ function ensureTableHeader() {
   const thead = schedulesTable.querySelector('thead');
   if (thead.innerHTML.trim() !== "") return;
 
+  // Вспомогательная функция для генерации жестко зафиксированной ширины
+  const fixWidth = (w) => `style="width: ${w}px; min-width: ${w}px; max-width: ${w}px;"`;
+
   let theadHtml = `
     <tr>
-      <th style="width: 110px;">Дата і час початку</th>
-      <th style="width: 110px;">Дата і час завершення</th>
-      <th style="width: 90px;">Код</th>
-      <th style="width: 50px;">Номер</th>
-      <th style="width: 110px;">Назва</th>
-      <th style="width: 110px;">Група маршрутів</th>
-      <th style="width: 110px;">Наряд</th>
-      <th style="width: 130px;">Тип переміщення</th>
-      <th style="width: 90px;">Тип ТЗ</th>
-      <th style="width: 110px;">Формат завантаження</th>
-      <th style="width: 220px;">Маршрут</th>
-      <th style="width: 25px;">ПН</th>
-      <th style="width: 25px;">ВТ</th>
-      <th style="width: 25px;">СР</th>
-      <th style="width: 25px;">ЧТ</th>
-      <th style="width: 25px;">ПТ</th>
-      <th style="width: 25px;">СБ</th>
-      <th style="width: 25px;">НД</th>
-      <th style="width: 50px;">Дедлайн</th>
-      <th class="th-T1" style="width: 50px;">Подача</th>
-      <th class="th-T2" style="width: 50px;">Виїзд</th>
+      <th ${fixWidth(110)}>Дата і час початку</th>
+      <th ${fixWidth(110)}>Дата і час завершення</th>
+      <th ${fixWidth(90)}>Код</th>
+      <th ${fixWidth(50)}>Номер</th>
+      <th ${fixWidth(110)}>Назва</th>
+      <th ${fixWidth(110)}>Група маршрутів</th>
+      <th ${fixWidth(110)}>Наряд</th>
+      <th ${fixWidth(130)}>Тип переміщення</th>
+      <th ${fixWidth(90)}>Тип ТЗ</th>
+      <th ${fixWidth(110)}>Формат завантаження</th>
+      <th ${fixWidth(220)}>Маршрут</th>
+      <th ${fixWidth(25)}>ПН</th>
+      <th ${fixWidth(25)}>ВТ</th>
+      <th ${fixWidth(25)}>СР</th>
+      <th ${fixWidth(25)}>ЧТ</th>
+      <th ${fixWidth(25)}>ПТ</th>
+      <th ${fixWidth(25)}>СБ</th>
+      <th ${fixWidth(25)}>НД</th>
+      <th ${fixWidth(50)}>Дедлайн</th>
+      <th class="th-T1" ${fixWidth(50)}>Подача</th>
+      <th class="th-T2" ${fixWidth(50)}>Виїзд</th>
   `;
 
   for (let i = 3; i <= 22; i++) {
     const isArr = (i % 2 !== 0);
-    theadHtml += `<th class="th-T${i}" style="width: 50px;">${isArr ? 'Приїзд' : 'Виїзд'}</th>`;
+    theadHtml += `<th class="th-T${i}" ${fixWidth(50)}>${isArr ? 'Приїзд' : 'Виїзд'}</th>`;
   }
 
   theadHtml += `
-      <th class="th-T23" style="width: 50px;">Приїзд</th>
-      <th class="th-T24" style="width: 50px;">Виїзд</th>
-      <th style="width: 180px;">Коментар</th>
-      <th style="width: 60px;">Посегментні дедлайни</th>
-      <th style="width: 60px;">ДВ</th>
-      <th style="width: 60px;">П</th>
-      <th style="width: 60px;">В</th>
+      <th class="th-T23" ${fixWidth(50)}>Приїзд</th>
+      <th class="th-T24" ${fixWidth(50)}>Виїзд</th>
+      <th ${fixWidth(180)}>Коментар</th>
+      <th ${fixWidth(60)}>Посегментні дедлайни</th>
+      <th ${fixWidth(40)}>ДВ</th>
+      <th ${fixWidth(40)}>П</th>
+      <th ${fixWidth(40)}>В</th>
     </tr>
   `;
   thead.innerHTML = theadHtml;
@@ -327,7 +439,7 @@ function renderVisibleRows() {
 
   // Отрисовываем строго видимые строки (всего ~30-50 шт)
   for (let i = startIndex; i < endIndex; i++) {
-    html += getRowHtml(currentDataToRender[i]);
+    html += getRowHtml(currentDataToRender[i], i);
   }
 
   // Нижняя распорка
@@ -338,7 +450,7 @@ function renderVisibleRows() {
   tbody.innerHTML = html;
 }
 
-function getRowHtml(s) {
+function getRowHtml(s, index) {
   let rowStyle = "";
   if (s.endDate && !isNaN(s.endDate.getTime())) {
     rowStyle = 'style="background-color: #fa8072;"';
@@ -348,8 +460,10 @@ function getRowHtml(s) {
     rowStyle = 'style="background-color: #ffff00;"';
   }
 
+  const isSelected = (index === selectedRowIndex) ? "selected-row" : "";
+
   let html = `
-    <tr ${rowStyle}>
+    <tr data-index="${index}" class="${isSelected}" ${rowStyle}>
       <td>${formatDateTime(s.startDate)}</td>
       <td>${formatDateTime(s.endDate)}</td>
       <td>${s.grf || ""}</td>
@@ -672,3 +786,531 @@ function clearFilters() {
 
 applyFiltersBtn.addEventListener('click', filterSchedules);
 clearFiltersBtn.addEventListener('click', clearFilters);
+// --- ЭЛЕМЕНТЫ МОДАЛЬНОГО ОКНА SCHEDFORM ---
+const schedModal = document.getElementById('schedModal');
+const closeSchedModalBtn = document.getElementById('closeSchedModalBtn');
+const saveSchedBtn = document.getElementById('saveSchedBtn');
+const schedModalTitle = document.getElementById('schedModalTitle');
+
+const sfIsActive = document.getElementById('sfIsActive');
+const sfStartDate = document.getElementById('sfStartDate');
+const sfEndDate = document.getElementById('sfEndDate');
+const sfClearEndDateBtn = document.getElementById('sfClearEndDateBtn');
+const sfVehType = document.getElementById('sfVehType');
+const sfDeliveryType = document.getElementById('sfDeliveryType');
+const sfMovingType = document.getElementById('sfMovingType');
+const sfLoadFormat = document.getElementById('sfLoadFormat');
+
+const sfRouteGroup = document.getElementById('sfRouteGroup');
+const sfNumber = document.getElementById('sfNumber');
+const sfOrder = document.getElementById('sfOrder');
+const sfName = document.getElementById('sfName');
+const sfDeadline = document.getElementById('sfDeadline');
+const sfDeadlines = document.getElementById('sfDeadlines');
+const sfDeadlinesSP = document.getElementById('sfDeadlinesSP');
+const sfDeadlinesP = document.getElementById('sfDeadlinesP');
+const sfDeadlinesC = document.getElementById('sfDeadlinesC');
+const sfComment = document.getElementById('sfComment');
+
+const sfLogMon = document.getElementById('sfLogMon');
+const sfLogTue = document.getElementById('sfLogTue');
+const sfLogWed = document.getElementById('sfLogWed');
+const sfLogThu = document.getElementById('sfLogThu');
+const sfLogFri = document.getElementById('sfLogFri');
+const sfLogSat = document.getElementById('sfLogSat');
+const sfLogSun = document.getElementById('sfLogSun');
+
+const sfPointsTableBody = document.querySelector('#sfPointsTable tbody');
+const sfAddPointBtn = document.getElementById('sfAddPointBtn');
+const sfRemovePointBtn = document.getElementById('sfRemovePointBtn');
+
+let currentEditingSchedule = null;
+let currentEditingIndex = -1;
+let localPoints = []; // Локальная рабочая копия точек маршрута
+
+// 1. Двойной клик на строку таблицы (DataGridView1_DoubleClick)
+schedulesTable.querySelector('tbody').addEventListener('dblclick', (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr || tr.classList.contains('virtual-spacer')) return;
+
+  const rowIndex = parseInt(tr.dataset.index, 10);
+  const sched = currentDataToRender[rowIndex];
+  if (sched) {
+    openSchedModal(sched, rowIndex);
+  }
+});
+
+// Открытие окна карточки графика
+function openSchedModal(sched, index) {
+  currentEditingSchedule = sched;
+  currentEditingIndex = index;
+  schedModalTitle.textContent = `Графік: ${sched.grf || sched.name || "Новий"}`;
+
+  // Наполняем выпадающие списки доступными значениями
+  copySelectOptions(fVehType, sfVehType);
+  copySelectOptions(fDeliveryType, sfDeliveryType);
+  copySelectOptions(fMovingType, sfMovingType);
+  copySelectOptions(fLoadFormat, sfLoadFormat);
+
+  // Заполнение полей
+  sfIsActive.checked = !!sched.isActive;
+  sfStartDate.value = toInputDateTime(sched.startDate);
+  sfEndDate.value = toInputDateTime(sched.endDate);
+
+  sfVehType.value = sched.vehicleType || "";
+  sfDeliveryType.value = sched.deliveryType || "";
+  sfMovingType.value = sched.movingType || "";
+  sfLoadFormat.value = sched.loadFormat || "";
+
+  sfRouteGroup.value = sched.routeGroup || "";
+  sfNumber.value = sched.number || "";
+  sfOrder.value = sched.order || "";
+  sfName.value = sched.name || "";
+  sfDeadline.checked = !!sched.deadline;
+  sfDeadlines.value = sched.deadlineSegments || "";
+  sfDeadlinesSP.value = sched.deadlineSegmentsSP || "";
+  sfDeadlinesP.value = sched.deadlineSegmentsP || "";
+  sfDeadlinesC.value = sched.deadlineSegmentsC || "";
+  sfComment.value = sched.comment || "";
+
+  sfLogMon.checked = !!sched.logMon;
+  sfLogTue.checked = !!sched.logTue;
+  sfLogWed.checked = !!sched.logWed;
+  sfLogThu.checked = !!sched.logThu;
+  sfLogFri.checked = !!sched.logFri;
+  sfLogSat.checked = !!sched.logSat;
+  sfLogSun.checked = !!sched.logSun;
+
+  // Копируем точки маршрута
+  localPoints = (sched.points || []).map(p => ({
+    name: p.name || "",
+    namePravosl: p.namePravosl || "",
+    arrival: p.arrival ? new Date(p.arrival.getTime()) : null,
+    departure: p.departure ? new Date(p.departure.getTime()) : null,
+    movingType: p.movingType || "",
+    distance: p.distance || 0,
+    loadRamp1: p.loadRamp1 || 0,
+    loadRamp2: p.loadRamp2 || 0,
+    city: p.city || "",
+    nodeCat: p.nodeCat || ""
+  }));
+
+  renderLocalPointsTable();
+  schedModal.style.display = 'flex';
+}
+
+function copySelectOptions(sourceSelect, targetSelect) {
+  targetSelect.innerHTML = sourceSelect.innerHTML;
+}
+
+function toInputDateTime(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Отрисовка таблицы точек маршрута в 24-часовом формате (HH:mm)
+function renderLocalPointsTable() {
+  sfPointsTableBody.innerHTML = "";
+  localPoints.forEach((pt, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="pt-name" value="${pt.name}"></td>
+      <td><input type="text" class="pt-arr" value="${formatTime(pt.arrival)}" placeholder="00:00" maxlength="5"></td>
+      <td><input type="text" class="pt-dep" value="${formatTime(pt.departure)}" placeholder="00:00" maxlength="5"></td>
+      <td><input type="text" class="pt-mov" value="${pt.movingType}"></td>
+      <td><input type="number" class="pt-dist" value="${pt.distance}" style="width: 55px;"></td>
+      <td><input type="number" class="pt-r1" value="${pt.loadRamp1}" style="width: 45px;"></td>
+      <td><input type="number" class="pt-r2" value="${pt.loadRamp2}" style="width: 45px;"></td>
+    `;
+    sfPointsTableBody.appendChild(tr);
+
+    // Автоматическая подстановка двоеточия при вводе (например, если набрать 1912 -> станет 19:12)
+    const arrInput = tr.querySelector('.pt-arr');
+    const depInput = tr.querySelector('.pt-dep');
+    attachTimeInputAutoFormat(arrInput);
+    attachTimeInputAutoFormat(depInput);
+  });
+}
+
+// Помощник автоформатирования: позволяет вводить время как через двоеточие, так и подряд 4 цифры
+function attachTimeInputAutoFormat(input) {
+  input.addEventListener('blur', () => {
+    let val = input.value.trim().replace(/[^0-9]/g, '');
+    if (val.length === 3 || val.length === 4) {
+      val = val.padStart(4, '0');
+      let h = Math.min(23, parseInt(val.slice(0, 2), 10));
+      let m = Math.min(59, parseInt(val.slice(2), 10));
+      input.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+  });
+}
+
+// Надежный парсер 24-часового времени
+function parseTimeInput(timeStr) {
+  if (!timeStr) return new Date(1975, 0, 1, 0, 0);
+  let clean = timeStr.trim().replace(/[^0-9:]/g, '');
+  if (!clean.includes(':') && (clean.length === 3 || clean.length === 4)) {
+    clean = clean.padStart(4, '0');
+    clean = clean.slice(0, 2) + ':' + clean.slice(2);
+  }
+  const parts = clean.split(':');
+  const h = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
+  const m = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
+  return new Date(1975, 0, 1, h, m);
+}
+
+// Добавление / удаление узлов маршрута
+sfAddPointBtn.addEventListener('click', () => {
+  localPoints.push({
+    name: "Новий",
+    arrival: new Date(1975, 0, 1, 12, 0),
+    departure: new Date(1975, 0, 1, 12, 10),
+    movingType: sfMovingType.value || "",
+    distance: 0,
+    loadRamp1: 0,
+    loadRamp2: 0
+  });
+  renderLocalPointsTable();
+});
+
+sfRemovePointBtn.addEventListener('click', () => {
+  if (localPoints.length > 2) {
+    localPoints.pop();
+    renderLocalPointsTable();
+  } else {
+    alert("У маршруті мусить бути мінімум дві точки!");
+  }
+});
+
+sfClearEndDateBtn.addEventListener('click', () => {
+  sfEndDate.value = "";
+});
+
+// Автозаполнение номера графика FillNumber() из SchedForm.vb
+function fillNumber() {
+  const mov = sfMovingType.value;
+  if (mov === "Порожній") { sfNumber.value = "88"; return; }
+  if (mov === "Фрахт") { sfNumber.value = "99"; return; }
+  if (mov === "Тара") { sfNumber.value = "999"; return; }
+
+  const currentNum = sfNumber.value.trim();
+  if (!currentNum || ["1","2","3","4","5","6","7"].includes(currentNum)) {
+    if (sfLogMon.checked) sfNumber.value = "1";
+    else if (sfLogTue.checked) sfNumber.value = "2";
+    else if (sfLogWed.checked) sfNumber.value = "3";
+    else if (sfLogThu.checked) sfNumber.value = "4";
+    else if (sfLogFri.checked) sfNumber.value = "5";
+    else if (sfLogSat.checked) sfNumber.value = "6";
+    else if (sfLogSun.checked) sfNumber.value = "7";
+  }
+}
+
+[sfLogMon, sfLogTue, sfLogWed, sfLogThu, sfLogFri, sfLogSat, sfLogSun].forEach(cb => {
+  cb.addEventListener('change', fillNumber);
+});
+sfMovingType.addEventListener('change', fillNumber);
+
+// 3. Сохранение изменений (SaveBTN_Click из SchedForm.vb)
+saveSchedBtn.addEventListener('click', () => {
+  if (!currentEditingSchedule) return;
+
+  // Считываем актуальные данные из таблицы точек
+  const rows = sfPointsTableBody.querySelectorAll('tr');
+  rows.forEach((tr, i) => {
+    localPoints[i].name = tr.querySelector('.pt-name').value.trim();
+    localPoints[i].arrival = parseTimeInput(tr.querySelector('.pt-arr').value);
+    localPoints[i].departure = parseTimeInput(tr.querySelector('.pt-dep').value);
+    localPoints[i].movingType = tr.querySelector('.pt-mov').value.trim();
+    localPoints[i].distance = parseFloat(tr.querySelector('.pt-dist').value) || 0;
+    localPoints[i].loadRamp1 = parseInt(tr.querySelector('.pt-r1').value, 10) || 0;
+    localPoints[i].loadRamp2 = parseInt(tr.querySelector('.pt-r2').value, 10) || 0;
+  });
+
+  // --- ТОЧНЫЕ ВАЛИДАЦИИ ИЗ SCHEDFORM.VB ---
+  if (localPoints.length < 2) {
+    alert("У маршруті мусить бути мінімум дві точки!");
+    return;
+  }
+  if (sfLoadFormat.value.includes("Короб") && sfVehType.value === "20т") {
+    alert("Невідповідний тип ТЗ до формату завантаження");
+    return;
+  }
+  if (!sfLoadFormat.value && sfMovingType.value !== "Порожній") {
+    alert("Потрібно заповнити формат завантаження");
+    return;
+  }
+  if (!sfVehType.value) {
+    alert("Потрібно вказати тип ТЗ");
+    return;
+  }
+  if (!sfMovingType.value) {
+    alert("Потрібно вказати тип завантаження");
+    return;
+  }
+  if (!sfLogMon.checked && !sfLogTue.checked && !sfLogWed.checked && 
+      !sfLogThu.checked && !sfLogFri.checked && !sfLogSat.checked && !sfLogSun.checked) {
+    alert("Вкажи хоча б один робочий день");
+    return;
+  }
+
+  // Проверка «стрёмного времени» (TimeDiff)
+  const sched = currentEditingSchedule;
+  const p0 = localPoints[0];
+  const pLast = localPoints[localPoints.length - 1];
+
+  const tDiff0 = getTimeDiffMinutes(p0.arrival, p0.departure);
+  if (tDiff0 > (23 * 60 + 50) || tDiff0 < 1) {
+    alert(`На вузлі ${p0.name} стрьомний час на завантаження`);
+    return;
+  }
+
+  const tDiffLast = getTimeDiffMinutes(pLast.arrival, pLast.departure);
+  if (tDiffLast > 120 || tDiffLast < 1) {
+    alert(`На вузлі ${pLast.name} стрьомний час на вивантаження`);
+    return;
+  }
+
+  for (let i = 1; i < localPoints.length - 1; i++) {
+    const diff = getTimeDiffMinutes(localPoints[i].arrival, localPoints[i].departure);
+    if (diff > 360 || diff < 1) {
+      alert(`На вузлі ${localPoints[i].name} стрьомний час на вивантаження`);
+      return;
+    }
+  }
+
+  // --- ФИКСАЦИЯ ИЗМЕНЕНИЙ В CHANGEDFIELDS ---
+  function trackChange(field, oldVal, newVal) {
+    if (oldVal !== newVal && !sched.changedFields.includes(field)) {
+      sched.changedFields.push(field);
+    }
+  }
+
+  trackChange("VehicleType", sched.vehicleType, sfVehType.value);
+  trackChange("DeliveryType", sched.deliveryType, sfDeliveryType.value);
+  trackChange("MovingType", sched.movingType, sfMovingType.value);
+  trackChange("LoadFormat", sched.loadFormat, sfLoadFormat.value);
+  trackChange("RouteGroup", sched.routeGroup, sfRouteGroup.value);
+  trackChange("Number", sched.number, sfNumber.value);
+  trackChange("Order", sched.order, sfOrder.value);
+  trackChange("Name", sched.name, sfName.value);
+  trackChange("Deadline", sched.deadline, sfDeadline.checked);
+  trackChange("DeadlineSegments", sched.deadlineSegments, sfDeadlines.value);
+  trackChange("DeadlineSegmentsSP", sched.deadlineSegmentsSP, sfDeadlinesSP.value);
+  trackChange("DeadlineSegmentsP", sched.deadlineSegmentsP, sfDeadlinesP.value);
+  trackChange("DeadlineSegmentsC", sched.deadlineSegmentsC, sfDeadlinesC.value);
+  trackChange("Comment", sched.comment, sfComment.value);
+
+  trackChange("LogMon", sched.logMon, sfLogMon.checked);
+  trackChange("LogTue", sched.logTue, sfLogTue.checked);
+  trackChange("LogWed", sched.logWed, sfLogWed.checked);
+  trackChange("LogThu", sched.logThu, sfLogThu.checked);
+  trackChange("LogFri", sched.logFri, sfLogFri.checked);
+  trackChange("LogSat", sched.logSat, sfLogSat.checked);
+  trackChange("LogSun", sched.logSun, sfLogSun.checked);
+
+  // Применяем сохраненные значения к графику
+  sched.points = localPoints;
+  sched.setRoute();
+
+  sched.startDate = sfStartDate.value ? new Date(sfStartDate.value) : sched.startDate;
+  sched.endDate = sfEndDate.value ? new Date(sfEndDate.value) : null;
+  sched.vehicleType = sfVehType.value;
+  sched.deliveryType = sfDeliveryType.value;
+  sched.movingType = sfMovingType.value;
+  sched.loadFormat = sfLoadFormat.value;
+  sched.routeGroup = sfRouteGroup.value;
+  sched.number = sfNumber.value;
+  sched.order = sfOrder.value;
+  sched.name = sfName.value;
+  sched.deadline = sfDeadline.checked;
+  sched.deadlineSegments = sfDeadlines.value;
+  sched.deadlineSegmentsSP = sfDeadlinesSP.value;
+  sched.deadlineSegmentsP = sfDeadlinesP.value;
+  sched.deadlineSegmentsC = sfDeadlinesC.value;
+  sched.comment = sfComment.value;
+
+  sched.logMon = sfLogMon.checked;
+  sched.logTue = sfLogTue.checked;
+  sched.logWed = sfLogWed.checked;
+  sched.logThu = sfLogThu.checked;
+  sched.logFri = sfLogFri.checked;
+  sched.logSat = sfLogSat.checked;
+  sched.logSun = sfLogSun.checked;
+
+// Сбор выбранных логистических дней
+  const selDays = [];
+  if (sfLogMon.checked) selDays.push(1);
+  if (sfLogTue.checked) selDays.push(2);
+  if (sfLogWed.checked) selDays.push(3);
+  if (sfLogThu.checked) selDays.push(4);
+  if (sfLogFri.checked) selDays.push(5);
+  if (sfLogSat.checked) selDays.push(6);
+  if (sfLogSun.checked) selDays.push(7);
+
+  if (sched.isNew) {
+    // РЕЖИМ СОЗДАНИЯ / КОПИРОВАНИЯ: Размножаем графики на каждый выбранный день
+    selDays.forEach((d, idx) => {
+      const s = (idx === 0) ? sched : cloneSchedule(sched);
+
+      s.points = localPoints.map(p => ({ ...p, 
+        arrival: p.arrival ? new Date(p.arrival.getTime()) : null,
+        departure: p.departure ? new Date(p.departure.getTime()) : null
+      }));
+      s.setRoute();
+
+      s.startDate = sfStartDate.value ? new Date(sfStartDate.value) : new Date();
+      s.endDate = sfEndDate.value ? new Date(sfEndDate.value) : null;
+      s.vehicleType = sfVehType.value;
+      s.deliveryType = sfDeliveryType.value;
+      s.movingType = sfMovingType.value;
+      s.loadFormat = sfLoadFormat.value;
+      s.routeGroup = sfRouteGroup.value;
+
+      // Динамический номер по правилу FillNumber() для конкретного дня d
+      let calcNumber = sfNumber.value.trim();
+      if (s.movingType === "Порожній") calcNumber = "88";
+      else if (s.movingType === "Фрахт") calcNumber = "99";
+      else if (s.movingType === "Тара") calcNumber = "999";
+      else if (!calcNumber || ["1","2","3","4","5","6","7"].includes(calcNumber)) {
+        calcNumber = String(d);
+      }
+      s.number = calcNumber;
+
+      s.order = sfOrder.value;
+      s.name = sfName.value;
+      s.deadline = sfDeadline.checked;
+      s.deadlineSegments = sfDeadlines.value;
+      s.deadlineSegmentsSP = sfDeadlinesSP.value;
+      s.deadlineSegmentsP = sfDeadlinesP.value;
+      s.deadlineSegmentsC = sfDeadlinesC.value;
+      s.comment = sfComment.value;
+
+      s.logMon = (d === 1);
+      s.logTue = (d === 2);
+      s.logWed = (d === 3);
+      s.logThu = (d === 4);
+      s.logFri = (d === 5);
+      s.logSat = (d === 6);
+      s.logSun = (d === 7);
+      s.logisticDay = d;
+
+      s.astroDay = s.logisticDay;
+      if (s.points[0]?.departure && s.points[0].departure.getHours() < 12) {
+        s.astroDay += 1;
+        if (s.astroDay === 8) s.astroDay = 1;
+      }
+
+      s.mon = (s.astroDay === 1);
+      s.tue = (s.astroDay === 2);
+      s.wed = (s.astroDay === 3);
+      s.thu = (s.astroDay === 4);
+      s.fri = (s.astroDay === 5);
+      s.sat = (s.astroDay === 6);
+      s.sun = (s.astroDay === 7);
+
+      s.isNew = true;
+      s.changed = true;
+      s.calculateTimes();
+      s.normalizeTimes();
+
+      // Вставляем созданный график в таблицу
+      if (currentEditingIndex >= 0) {
+        schedulesFiltered.splice(currentEditingIndex + 1, 0, s);
+      } else {
+        schedulesFiltered.unshift(s);
+      }
+      schedules.unshift(s);
+    });
+
+  } else {
+    // РЕЖИМ РЕДАКТИРОВАНИЯ СУЩЕСТВУЮЩЕГО
+    sched.points = localPoints;
+    sched.setRoute();
+    sched.startDate = sfStartDate.value ? new Date(sfStartDate.value) : sched.startDate;
+    sched.endDate = sfEndDate.value ? new Date(sfEndDate.value) : null;
+    sched.vehicleType = sfVehType.value;
+    sched.deliveryType = sfDeliveryType.value;
+    sched.movingType = sfMovingType.value;
+    sched.loadFormat = sfLoadFormat.value;
+    sched.routeGroup = sfRouteGroup.value;
+    sched.number = sfNumber.value;
+    sched.order = sfOrder.value;
+    sched.name = sfName.value;
+    sched.deadline = sfDeadline.checked;
+    sched.deadlineSegments = sfDeadlines.value;
+    sched.deadlineSegmentsSP = sfDeadlinesSP.value;
+    sched.deadlineSegmentsP = sfDeadlinesP.value;
+    sched.deadlineSegmentsC = sfDeadlinesC.value;
+    sched.comment = sfComment.value;
+
+    sched.logMon = sfLogMon.checked;
+    sched.logTue = sfLogTue.checked;
+    sched.logWed = sfLogWed.checked;
+    sched.logThu = sfLogThu.checked;
+    sched.logFri = sfLogFri.checked;
+    sched.logSat = sfLogSat.checked;
+    sched.logSun = sfLogSun.checked;
+
+    sched.logisticDay = 1;
+    if (sched.logTue) sched.logisticDay = 2;
+    if (sched.logWed) sched.logisticDay = 3;
+    if (sched.logThu) sched.logisticDay = 4;
+    if (sched.logFri) sched.logisticDay = 5;
+    if (sched.logSat) sched.logisticDay = 6;
+    if (sched.logSun) sched.logisticDay = 7;
+
+    sched.astroDay = sched.logisticDay;
+    if (sched.points[0]?.departure && sched.points[0].departure.getHours() < 12) {
+      sched.astroDay += 1;
+      if (sched.astroDay === 8) sched.astroDay = 1;
+    }
+
+    sched.mon = (sched.astroDay === 1);
+    sched.tue = (sched.astroDay === 2);
+    sched.wed = (sched.astroDay === 3);
+    sched.thu = (sched.astroDay === 4);
+    sched.fri = (sched.astroDay === 5);
+    sched.sat = (sched.astroDay === 6);
+    sched.sun = (sched.astroDay === 7);
+
+    sched.changed = true;
+    sched.calculateTimes();
+    sched.normalizeTimes();
+  }
+
+  renderVisibleRows();
+  schedModal.style.display = 'none';
+});
+
+closeSchedModalBtn.addEventListener('click', () => {
+  schedModal.style.display = 'none';
+});
+
+
+function getTimeDiffMinutes(d1, d2) {
+  if (!d1 || !d2) return 0;
+  const m1 = d1.getHours() * 60 + d1.getMinutes();
+  const m2 = d2.getHours() * 60 + d2.getMinutes();
+  let diff = m2 - m1;
+  if (diff < 0) diff += 1440;
+  return diff;
+}
+function cloneSchedule(src) {
+  const s = Object.assign(Object.create(Object.getPrototypeOf(src)), src);
+  // Глубокое копирование контрольных точек
+  s.points = (src.points || []).map(p => ({
+    ...p,
+    arrival: p.arrival ? new Date(p.arrival.getTime()) : null,
+    departure: p.departure ? new Date(p.departure.getTime()) : null
+  }));
+  s.changedFields = [];
+  s.grf = ""; // Новый клон создается без системного номера GRF
+  s.isNew = true;
+  s.changed = true;
+  return s;
+}

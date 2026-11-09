@@ -86,6 +86,8 @@ body {
   border-collapse: collapse;
   white-space: nowrap;
   table-layout: fixed;
+  width: max-content; /* ОБЯЗАТЕЛЬНО: удерживает общую ширину таблицы постоянной */
+  min-width: 100%;
 }
 
 #schedulesTable th {
@@ -100,6 +102,9 @@ body {
   z-index: 10;
   height: 26px;
   user-select: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #schedulesTable td {
@@ -109,10 +114,7 @@ body {
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-#schedulesTable tr:hover {
-  background-color: #e8f2fe !important;
+  box-sizing: border-box;
 }
 
 .grid-chk {
@@ -319,11 +321,20 @@ body {
   border-radius: 3px;
 }
 
-.filters-panel legend {
-  font-size: 11px;
-  font-weight: 600;
-  color: #333;
-  padding: 0 4px;
+/* Панель фильтров */
+.filters-panel {
+  background: #f4f4f4;
+  border: 1px solid #dcdcdc;
+  margin: 6px 10px;
+  padding: 6px 12px 8px 12px;
+  border-radius: 3px;
+  
+  /* Занимает ровно половину экрана на полном окне */
+  width: 50%;
+  
+  /* Не сжимается меньше 820px при уменьшении окна */
+  min-width: 820px;
+  box-sizing: border-box;
 }
 
 .filters-grid {
@@ -403,4 +414,229 @@ body {
 
 .btn-filter-clear:hover {
   background-color: #fce4e4;
+}
+/* Модальное окно редактирования графика SchedForm */
+.sched-modal-content {
+  max-width: 860px;
+  width: 95%;
+  max-height: 94vh;
+}
+
+.sched-modal-body {
+  padding: 12px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sched-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  background: #fafafa;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+.form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.form-row label {
+  font-size: 11.5px;
+  color: #333;
+  min-width: 130px;
+}
+
+.form-row input[type="text"],
+.form-row input[type="datetime-local"],
+.form-row select {
+  flex: 1;
+  height: 24px;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  font-family: inherit;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.input-with-clear {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.input-with-clear button {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.deadline-sub-row {
+  display: flex;
+  gap: 6px;
+}
+
+.deadline-sub-row > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.deadline-sub-row label {
+  min-width: auto;
+  font-weight: bold;
+}
+
+.deadline-sub-row input {
+  width: 100%;
+  height: 24px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* Нижняя часть */
+.sched-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 12px;
+}
+
+.points-fieldset, .days-fieldset {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px;
+  background: #fff;
+}
+
+.points-fieldset legend, .days-fieldset legend {
+  font-weight: 600;
+  font-size: 11.5px;
+  padding: 0 4px;
+}
+
+.points-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.points-table-wrap {
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+}
+
+#sfPointsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#sfPointsTable th, #sfPointsTable td {
+  border: 1px solid #ddd;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+#sfPointsTable th {
+  background: #f4f4f4;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#sfPointsTable input {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: 2px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+#sfPointsTable input:focus {
+  border-color: #4a77d4;
+  background: #f0f7ff;
+}
+#sfPointsTable .pt-arr,
+#sfPointsTable .pt-dep {
+  text-align: center;
+  font-weight: 500;
+  width: 60px;
+}
+.days-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.days-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+/* Панель быстрых операций */
+.actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 0 10px;
+}
+
+.action-buttons-group {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.btn-action {
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background-color: #f7f7f7;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-action:hover {
+  background-color: #e2eafc;
+  border-color: #4a77d4;
+}
+
+.btn-delete:hover {
+  background-color: #fce4e4;
+  border-color: #d9534f;
+}
+
+/* Подсветка строки, выбранной одиночным кликом */
+#schedulesTable tbody tr.selected-row {
+  outline: 2px solid #0078d7 !important;
+  outline-offset: -2px;
+  position: relative;
+  z-index: 1;
 }

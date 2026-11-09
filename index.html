@@ -10,6 +10,14 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
+  <!-- Панель быстрых операций над графиками -->
+  <div class="actions-bar">
+    <div class="action-buttons-group">
+      <button id="btnCreateNew" class="btn btn-action" title="Створити новий графік">➕</button>
+      <button id="btnCreateCopy" class="btn btn-action" title="Створити копіюванням">📑</button>
+      <button id="btnDeleteSched" class="btn btn-action btn-delete" title="Видалити графік (лише для створених тут)">🗑</button>
+    </div>
+  </div>
 
   <!-- Верхняя панель инструментов -->
   <header class="toolbar">
@@ -177,6 +185,136 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
+  <!-- Модальное окно редактирования графика (SchedForm) -->
+  <div id="schedModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content sched-modal-content">
+      <div class="modal-header">
+        <h3 id="schedModalTitle">Редагування графіка</h3>
+        <button id="closeSchedModalBtn" class="close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body sched-modal-body">
+        <!-- Верхняя сетка параметров (2 колонки) -->
+        <div class="sched-form-grid">
+          <!-- Левая колонка -->
+          <div class="form-col">
+            <div class="form-row">
+              <label><input type="checkbox" id="sfIsActive" disabled> Активний</label>
+            </div>
+            <div class="form-row">
+              <label for="sfStartDate">Початок:</label>
+              <input type="datetime-local" id="sfStartDate">
+            </div>
+            <div class="form-row">
+              <label for="sfEndDate">Завершення:</label>
+              <div class="input-with-clear">
+                <input type="datetime-local" id="sfEndDate">
+                <button type="button" id="sfClearEndDateBtn" title="Очистити дату завершення">✖</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="sfVehType">Тип ТЗ:</label>
+              <select id="sfVehType"></select>
+            </div>
+            <div class="form-row">
+              <label for="sfDeliveryType">Тип доставки:</label>
+              <select id="sfDeliveryType"></select>
+            </div>
+            <div class="form-row">
+              <label for="sfMovingType">Тип завантаження:</label>
+              <select id="sfMovingType"></select>
+            </div>
+            <div class="form-row">
+              <label for="sfLoadFormat">Формат завантаження:</label>
+              <select id="sfLoadFormat"></select>
+            </div>
+          </div>
+
+          <!-- Правая колонка -->
+          <div class="form-col">
+            <div class="form-row">
+              <label for="sfRouteGroup">Група маршрутів:</label>
+              <input type="text" id="sfRouteGroup">
+            </div>
+            <div class="form-row">
+              <label for="sfNumber">Номер:</label>
+              <input type="text" id="sfNumber">
+            </div>
+            <div class="form-row">
+              <label for="sfOrder">Наряд:</label>
+              <input type="text" id="sfOrder">
+            </div>
+            <div class="form-row">
+              <label for="sfName">Назва:</label>
+              <input type="text" id="sfName">
+            </div>
+            <div class="form-row">
+              <label><input type="checkbox" id="sfDeadline"> Дедлайн</label>
+            </div>
+            <div class="form-row">
+              <label for="sfDeadlines">Посегментні дедлайни:</label>
+              <input type="text" id="sfDeadlines">
+            </div>
+            <div class="form-row deadline-sub-row">
+              <div><label>ДВ:</label><input type="text" id="sfDeadlinesSP"></div>
+              <div><label>П:</label><input type="text" id="sfDeadlinesP"></div>
+              <div><label>В:</label><input type="text" id="sfDeadlinesC"></div>
+            </div>
+            <div class="form-row">
+              <label for="sfComment">Коментар:</label>
+              <input type="text" id="sfComment">
+            </div>
+          </div>
+        </div>
+
+        <!-- Нижняя часть: Маршрут (точки) + Логистические дни -->
+        <div class="sched-bottom-grid">
+          <!-- Группа: Маршрут -->
+          <fieldset class="points-fieldset">
+            <legend>Маршрут</legend>
+            <div class="points-toolbar">
+              <button type="button" id="sfAddPointBtn" class="btn" title="Додати точку маршруту">➕ Додати вузол</button>
+              <button type="button" id="sfRemovePointBtn" class="btn" title="Видалити останню точку">➖ Видалити вузол</button>
+            </div>
+            <div class="points-table-wrap">
+              <table id="sfPointsTable">
+                <thead>
+                  <tr>
+                    <th>Вузол</th>
+                    <th>Приїзд</th>
+                    <th>Виїзд</th>
+                    <th>Тип переміщення</th>
+                    <th>Відстань, км</th>
+                    <th>Рампа 1</th>
+                    <th>Рампа 2</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </fieldset>
+
+          <!-- Группа: Логистические дни -->
+          <fieldset class="days-fieldset">
+            <legend>Логістичні дні</legend>
+            <div class="days-list">
+              <label><input type="checkbox" id="sfLogMon"> Понеділок (Пн)</label>
+              <label><input type="checkbox" id="sfLogTue"> Вівторок (Вт)</label>
+              <label><input type="checkbox" id="sfLogWed"> Середа (Ср)</label>
+              <label><input type="checkbox" id="sfLogThu"> Четвер (Чт)</label>
+              <label><input type="checkbox" id="sfLogFri"> П'ятниця (Пт)</label>
+              <label><input type="checkbox" id="sfLogSat"> Субота (Сб)</label>
+              <label><input type="checkbox" id="sfLogSun"> Неділя (Нд)</label>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveSchedBtn" class="btn btn-traffic">💾 Зберегти зміни</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 </body>
