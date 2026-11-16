@@ -218,72 +218,9 @@ if (pointsCountInput) {
   });
 }
 
-function updatePointsVisibility(pointsCount) {
-  const maxVisibleT = pointsCount * 2;
-  let styleTag = document.getElementById('dynamicPointsStyle');
-  if (!styleTag) {
-    styleTag = document.createElement('style');
-    styleTag.id = 'dynamicPointsStyle';
-    document.head.appendChild(styleTag);
-  }
 
-  let cssRules = [];
-  for (let i = 3; i <= 22; i++) {
-    if (i > maxVisibleT) {
-      cssRules.push(`.th-T${i}, .col-T${i}`);
-    }
-  }
-  styleTag.textContent = cssRules.length > 0 ? `${cssRules.join(', ')} { display: none !important; }` : "";
-}
 
-function ensureTableHeader() {
-  const thead = schedulesTable.querySelector('thead');
-  if (thead.innerHTML.trim() !== "") return;
 
-  const fixWidth = (w) => `style="width: ${w}px; min-width: ${w}px; max-width: ${w}px;"`;
-
-  let theadHtml = `
-    <tr>
-      <th ${fixWidth(110)}>Дата і час початку</th>
-      <th ${fixWidth(110)}>Дата і час завершення</th>
-      <th ${fixWidth(90)}>Код</th>
-      <th ${fixWidth(50)}>Номер</th>
-      <th ${fixWidth(110)}>Назва</th>
-      <th ${fixWidth(110)}>Група маршрутів</th>
-      <th ${fixWidth(110)}>Наряд</th>
-      <th ${fixWidth(130)}>Тип переміщення</th>
-      <th ${fixWidth(90)}>Тип ТЗ</th>
-      <th ${fixWidth(110)}>Формат завантаження</th>
-      <th ${fixWidth(220)}>Маршрут</th>
-      <th ${fixWidth(25)}>ПН</th>
-      <th ${fixWidth(25)}>ВТ</th>
-      <th ${fixWidth(25)}>СР</th>
-      <th ${fixWidth(25)}>ЧТ</th>
-      <th ${fixWidth(25)}>ПТ</th>
-      <th ${fixWidth(25)}>СБ</th>
-      <th ${fixWidth(25)}>НД</th>
-      <th ${fixWidth(50)}>Дедлайн</th>
-      <th class="th-T1" ${fixWidth(50)}>Подача</th>
-      <th class="th-T2" ${fixWidth(50)}>Виїзд</th>
-  `;
-
-  for (let i = 3; i <= 22; i++) {
-    const isArr = (i % 2 !== 0);
-    theadHtml += `<th class="th-T${i}" ${fixWidth(50)}>${isArr ? 'Приїзд' : 'Виїзд'}</th>`;
-  }
-
-  theadHtml += `
-      <th class="th-T23" ${fixWidth(50)}>Приїзд</th>
-      <th class="th-T24" ${fixWidth(50)}>Виїзд</th>
-      <th ${fixWidth(180)}>Коментар</th>
-      <th ${fixWidth(60)}>Посегментні дедлайни</th>
-      <th ${fixWidth(40)}>ДВ</th>
-      <th ${fixWidth(40)}>П</th>
-      <th ${fixWidth(40)}>В</th>
-    </tr>
-  `;
-  thead.innerHTML = theadHtml;
-}
 
 gridContainer?.addEventListener('scroll', () => {
   if (!isScrollThrottled) {
@@ -309,12 +246,175 @@ function initVirtualTable(data, resetScroll = true) {
   renderVisibleRows();
 }
 
+// =========================================================
+// НАСТРОЙКА ШИРИНЫ КАЖДОЙ КОЛОНКИ ОСНОВНОЙ ТАБЛИЦЫ (в px)
+// Вы можете менять любые числа width под свои задачи
+// =========================================================
+const TABLE_COLUMNS = [
+  { key: 'startDate',          title: 'Дата і час початку',     width: 95 },
+  { key: 'endDate',            title: 'Дата і час завершення',  width: 95 },
+  { key: 'grf',                title: 'Код',                    width: 90 },
+  { key: 'number',             title: 'Номер',                  width: 50 },
+  { key: 'name',               title: 'Назва',                  width: 110 },
+  { key: 'routeGroup',         title: 'Група маршрутів',        width: 95 },
+  { key: 'order',              title: 'Наряд',                  width: 90 },
+  { key: 'movingType',         title: 'Тип переміщення',        width: 105 },
+  { key: 'vehicleType',        title: 'Тип ТЗ',                 width: 75 },
+  { key: 'loadFormat',         title: 'Формат завантаження',    width: 100 },
+  { key: 'route',              title: 'Маршрут',                width: 220 },
+  { key: 'logMon',             title: 'ПН',                     width: 26 },
+  { key: 'logTue',             title: 'ВТ',                     width: 26 },
+  { key: 'logWed',             title: 'СР',                     width: 26 },
+  { key: 'logThu',             title: 'ЧТ',                     width: 26 },
+  { key: 'logFri',             title: 'ПТ',                     width: 26 },
+  { key: 'logSat',             title: 'СБ',                     width: 26 },
+  { key: 'logSun',             title: 'НД',                     width: 26 },
+  { key: 'deadline',           title: 'Дедлайн',                width: 58 },
+  { key: 't1',                 title: 'Подача',                 width: 50, pointIdx: 1 },
+  { key: 't2',                 title: 'Виїзд',                  width: 50, pointIdx: 2 },
+  { key: 't3',                 title: 'Приїзд',                 width: 50, pointIdx: 3 },
+  { key: 't4',                 title: 'Виїзд',                  width: 50, pointIdx: 4 },
+  { key: 't5',                 title: 'Приїзд',                 width: 50, pointIdx: 5 },
+  { key: 't6',                 title: 'Виїзд',                  width: 50, pointIdx: 6 },
+  { key: 't7',                 title: 'Приїзд',                 width: 50, pointIdx: 7 },
+  { key: 't8',                 title: 'Виїзд',                  width: 50, pointIdx: 8 },
+  { key: 't9',                 title: 'Приїзд',                 width: 50, pointIdx: 9 },
+  { key: 't10',                title: 'Виїзд',                  width: 50, pointIdx: 10 },
+  { key: 't11',                title: 'Приїзд',                 width: 50, pointIdx: 11 },
+  { key: 't12',                title: 'Виїзд',                  width: 50, pointIdx: 12 },
+  { key: 't13',                title: 'Приїзд',                 width: 50, pointIdx: 13 },
+  { key: 't14',                title: 'Виїзд',                  width: 50, pointIdx: 14 },
+  { key: 't15',                title: 'Приїзд',                 width: 50, pointIdx: 15 },
+  { key: 't16',                title: 'Виїзд',                  width: 50, pointIdx: 16 },
+  { key: 't17',                title: 'Приїзд',                 width: 50, pointIdx: 17 },
+  { key: 't18',                title: 'Виїзд',                  width: 50, pointIdx: 18 },
+  { key: 't19',                title: 'Приїзд',                 width: 50, pointIdx: 19 },
+  { key: 't20',                title: 'Виїзд',                  width: 50, pointIdx: 20 },
+  { key: 't21',                title: 'Приїзд',                 width: 50, pointIdx: 21 },
+  { key: 't22',                title: 'Виїзд',                  width: 50, pointIdx: 22 },
+  { key: 't23',                title: 'Приїзд',                 width: 50, pointIdx: 23 },
+  { key: 't24',                title: 'Виїзд',                  width: 50, pointIdx: 24 },
+  { key: 'comment',            title: 'Коментар',               width: 160 },
+  { key: 'deadlineSegments',   title: 'Посегментні дедлайни',   width: 85 },
+  { key: 'deadlineSegmentsSP', title: 'ДВ',                     width: 40 },
+  { key: 'deadlineSegmentsP',  title: 'П',                      width: 40 },
+  { key: 'deadlineSegmentsC',  title: 'В',                      width: 40 }
+];
+
+// Пересчёт общей ширины таблицы (чтобы соседние колонки не сжимались при растягивании)
+function recalcTableTotalWidth() {
+  const maxVisibleT = (parseInt(pointsCountInput ? pointsCountInput.value : 12, 10) || 12) * 2;
+  let totalWidth = 0;
+
+  TABLE_COLUMNS.forEach(col => {
+    if (col.pointIdx && col.pointIdx >= 3 && col.pointIdx <= 22 && col.pointIdx > maxVisibleT) {
+      return; // Пропускаем скрытые колонки точек
+    }
+    totalWidth += col.width;
+  });
+
+  schedulesTable.style.width = `${totalWidth}px`;
+}
+
+// Скрытие колонок лишних точек с пересчётом ширины таблицы
+function updatePointsVisibility(pointsCount) {
+  const maxVisibleT = pointsCount * 2;
+  let styleTag = document.getElementById('dynamicPointsStyle');
+  if (!styleTag) {
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamicPointsStyle';
+    document.head.appendChild(styleTag);
+  }
+
+  let cssRules = [];
+  for (let i = 3; i <= 22; i++) {
+    if (i > maxVisibleT) {
+      cssRules.push(`.colgroup-T${i}, .th-T${i}, .col-T${i}`);
+    }
+  }
+  styleTag.textContent = cssRules.length > 0 ? `${cssRules.join(', ')} { display: none !important; }` : "";
+  recalcTableTotalWidth();
+}
+
+// Создание жёсткой сетки <colgroup>, заголовков и ползунков растягивания колонок
+function ensureTableHeader() {
+  const thead = schedulesTable.querySelector('thead');
+  if (thead.innerHTML.trim() !== "") return;
+
+  // Удаляем старый colgroup, если был, и создаём новый
+  const oldColgroup = schedulesTable.querySelector('colgroup');
+  if (oldColgroup) oldColgroup.remove();
+
+  const colgroup = document.createElement('colgroup');
+  const tr = document.createElement('tr');
+
+  TABLE_COLUMNS.forEach((colCfg, index) => {
+    // 1. Элемент <col> удерживает ширину колонки при любой прокрутке
+    const colEl = document.createElement('col');
+    colEl.style.width = `${colCfg.width}px`;
+    if (colCfg.pointIdx) {
+      colEl.className = `colgroup-T${colCfg.pointIdx}`;
+    }
+    colgroup.appendChild(colEl);
+
+    // 2. Ячейка заголовка <th>
+    const th = document.createElement('th');
+    th.style.width = `${colCfg.width}px`;
+    if (colCfg.pointIdx) {
+      th.className = `th-T${colCfg.pointIdx}`;
+    }
+    th.textContent = colCfg.title;
+
+    // 3. Ползунок растягивания мышкой
+    const resizer = document.createElement('div');
+    resizer.className = 'col-resizer';
+    resizer.title = 'Потягніть, щоб змінити ширину колонки';
+
+    resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const startX = e.pageX;
+      const startWidth = colCfg.width;
+      resizer.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+
+      const onMouseMove = (moveEvent) => {
+        const delta = moveEvent.pageX - startX;
+        const newWidth = Math.max(22, startWidth + delta);
+        colCfg.width = newWidth;
+        colEl.style.width = `${newWidth}px`;
+        th.style.width = `${newWidth}px`;
+        recalcTableTotalWidth();
+      };
+
+      const onMouseUp = () => {
+        resizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    th.appendChild(resizer);
+    tr.appendChild(th);
+  });
+
+  schedulesTable.insertBefore(colgroup, thead);
+  thead.appendChild(tr);
+  recalcTableTotalWidth();
+}
+
 function renderVisibleRows() {
   const tbody = schedulesTable.querySelector('tbody');
   const total = currentDataToRender.length;
+  const colSpanCount = TABLE_COLUMNS.length;
 
   if (total === 0) {
-    tbody.innerHTML = '<tr><td colspan="50" style="text-align: center; padding: 20px;">Немає даних для відображення</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${colSpanCount}" style="text-align: center; padding: 20px;">Немає даних для відображення</td></tr>`;
     return;
   }
 
@@ -332,7 +432,7 @@ function renderVisibleRows() {
 
   let html = '';
   if (topSpacerHeight > 0) {
-    html += `<tr class="virtual-spacer" style="height: ${topSpacerHeight}px;"><td colspan="50"></td></tr>`;
+    html += `<tr class="virtual-spacer" style="height: ${topSpacerHeight}px;"><td colspan="${colSpanCount}"></td></tr>`;
   }
 
   for (let i = startIndex; i < endIndex; i++) {
@@ -340,7 +440,7 @@ function renderVisibleRows() {
   }
 
   if (bottomSpacerHeight > 0) {
-    html += `<tr class="virtual-spacer" style="height: ${bottomSpacerHeight}px;"><td colspan="50"></td></tr>`;
+    html += `<tr class="virtual-spacer" style="height: ${bottomSpacerHeight}px;"><td colspan="${colSpanCount}"></td></tr>`;
   }
 
   tbody.innerHTML = html;
