@@ -699,3 +699,109 @@ body {
   outline-offset: -2px;
   filter: brightness(0.92);
 }
+/* Выпадающее меню Звіти */
+.dropdown-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  min-width: 340px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  z-index: 1500;
+  flex-direction: column;
+}
+
+.dropdown-menu.open .dropdown-content {
+  display: flex;
+}
+
+.dropdown-content button {
+  background: none;
+  border: none;
+  border-bottom: 1px solid #eee;
+  padding: 7px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-family: inherit;
+  color: #111;
+  cursor: pointer;
+}
+
+.dropdown-content button:last-child {
+  border-bottom: none;
+}
+
+.dropdown-content button:hover {
+  background-color: #e8f2fe;
+}
+
+/* Модальное окно отчётов */
+.report-modal-content {
+  width: 92%;
+  max-width: 1150px;
+  max-height: 88vh;
+}
+
+.report-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px;
+  background: #f7f7f7;
+  border-bottom: 1px solid #ddd;
+  gap: 10px;
+}
+
+.report-hint {
+  font-size: 11.5px;
+  color: #444;
+}
+
+.report-modal-body {
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+#reportTable {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+#reportTable th {
+  background: #ece9d8;
+  border: 1px solid #999;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+#reportTable td {
+  border: 1px solid #d4d0c8;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  height: 22px;
+}
+
+#reportTable tbody tr:hover {
+  background-color: #e8f2fe !important;
+  cursor: pointer;
+}
+
+#reportTable tbody tr.diag-bad {
+  background-color: #ffd6d6;
+  font-weight: 600;
+}

@@ -113,4 +113,43 @@ export class ExcelHelpers {
     }
     return max;
   }
+  static parseExcelDate(val) {
+  if (val === null || val === undefined || val === "") return null;
+
+  // Если значение уже Date
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val;
+  }
+
+  // Если Excel-число (серийный номер даты/времени)
+  if (typeof val === "number") {
+    const days = Math.floor(val);
+    const fraction = val - days;
+    const totalSeconds = Math.round(fraction * 86400);
+    const hours = Math.floor(totalSeconds / 3600) % 24;
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+      // Базовая дата Excel 30.12.1899 в UTC
+      const utcMs = Date.UTC(1899, 11, 30) + days * 86400000;
+      const d = new Date(utcMs);
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hours, minutes, seconds);
+    } else {
+      // Только время (доля суток < 1)
+      return new Date(1975, 0, 1, hours, minutes, seconds);
+    }
+  }
+
+  // Если строка формата "HH:mm" или "HH:mm:ss"
+  const str = String(val).trim();
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const [h, m, s] = str.split(':').map(Number);
+    return new Date(1975, 0, 1, h || 0, m || 0, s || 0);
+  }
+
+  // Если строка даты "dd.MM.yyyy HH:mm" или ISO
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
 }

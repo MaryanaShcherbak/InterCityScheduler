@@ -8,7 +8,7 @@ export class ExcelReader {
    */
   static async readWorkbook(file, dictionaries) {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
 
